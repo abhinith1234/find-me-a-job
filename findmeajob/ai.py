@@ -130,7 +130,8 @@ Return ONLY a JSON object, no prose, no markdown fences:
   "domains": [str],            // e.g. "distributed systems", "CDN", "frontend"
   "notable_projects": [str],   // one line each, with impact if stated
   "education": str,
-  "target_titles": [str],      // roles this person should realistically aim at
+    "target_titles": [str],      // roles this person should realistically aim at
+    "preferred_locations": [str], // cities/countries named as preferred locations
   "seniority": str             // intern | new-grad | junior | mid | senior | staff
 }"""
 

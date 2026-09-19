@@ -19,7 +19,6 @@ from .sources import fetch_all, hydrate
 from .samples import fetch_all_mock
 from .filters import prefilter
 from .backends import LLMError, resolve
-from .tracker import Store
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -94,8 +93,11 @@ def cmd_run(args) -> int:
     profile = _load_profile(cfg, allow_sample=args.mock)
     if profile is None:
         return 1
-    store = Store(cfg.get("seen_file", "seen.json"))
     filters = cfg.get("filters", {}) or {}
+    profile_locations = profile.get("preferred_locations") or profile.get("locations") or []
+    if profile_locations:
+        filters = dict(filters)
+        filters["preferred_locations"] = profile_locations
 
     # ---- 1. fetch
     print("\n[1/5] fetching boards")
@@ -112,15 +114,11 @@ def cmd_run(args) -> int:
         print("no postings fetched — check the slugs in companies.yaml")
         return 1
 
-    # ---- 2. prefilter + optional email dedupe (deterministic, free, no LLM)
+    # ---- 2. prefilter (deterministic, free, no LLM)
     print("\n[2/5] filtering")
     jobs = prefilter(jobs, filters)
     passed_filters = len(jobs)
-    if args.send:
-        jobs = store.unseen(jobs)
-        print(f"  new since last email: {len(jobs)}")
-    else:
-        print(f"  browser preview: {len(jobs)} matching jobs")
+    print(f"  matching jobs: {len(jobs)}")
     candidates = len(jobs)
     if args.limit:
         jobs = jobs[:args.limit]
@@ -132,7 +130,7 @@ def cmd_run(args) -> int:
         hydrate(jobs)
 
     if not jobs:
-        subject, doc = report_mod.build([], scanned, 0, store.stats())
+        subject, doc = report_mod.build([], scanned, 0, {})
         path = report_mod.write(doc, cfg.get("digest_file", "out/digest.html"))
         print(f"\nnothing new today. preview: {path}")
         return 0
@@ -186,7 +184,7 @@ def cmd_run(args) -> int:
 
     # ---- 5. digest
     print("\n[5/5] digest")
-    subject, doc = report_mod.build(shortlist, scanned, candidates, store.stats())
+    subject, doc = report_mod.build(shortlist, scanned, candidates, {})
     path = report_mod.write(doc, cfg.get("digest_file", "out/digest.html"))
     print(f"  wrote {path}")
     if getattr(args, "web_job_id", None):
@@ -207,33 +205,10 @@ def cmd_run(args) -> int:
     else:
         print("  --send not passed, email skipped")
 
-    if args.send:
-        store.record(jobs, emailed=sent)
-        csv_path = store.export_csv(cfg.get("tracker_csv", "out/tracker.csv"))
-    else:
-        csv_path = None
 
     print(f"\nfunnel: {scanned} scanned -> {passed_filters} passed filters "
           f"-> {candidates} new -> {len(shortlist)} in digest")
     print(f"subject: {subject}")
-    if args.send:
-        print(f"tracker: {store.stats()}  ({csv_path})")
-    return 0
-
-
-# ------------------------------------------------------------------- misc --
-def cmd_applied(args) -> int:
-    store = Store(_cfg(args.config).get("seen_file", "seen.json"))
-    ok = store.mark_applied(args.job_id)
-    print("marked applied" if ok else f"unknown job_id: {args.job_id}")
-    return 0 if ok else 1
-
-
-def cmd_stats(args) -> int:
-    cfg = _cfg(args.config)
-    store = Store(cfg.get("seen_file", "seen.json"))
-    print(json.dumps(store.stats(), indent=2))
-    print(f"csv: {store.export_csv(cfg.get('tracker_csv', 'out/tracker.csv'))}")
     return 0
 
 
@@ -269,13 +244,6 @@ def main(argv=None) -> int:
     sr.add_argument("--send", action="store_true", help="actually email the digest")
     sr.add_argument("--limit", type=int, help="cap jobs sent to the LLM (cost guard)")
     sr.set_defaults(func=cmd_run)
-
-    sa = sub.add_parser("applied", help="mark a job_id as applied")
-    sa.add_argument("job_id")
-    sa.set_defaults(func=cmd_applied)
-
-    ss = sub.add_parser("stats", help="tracker summary + CSV export")
-    ss.set_defaults(func=cmd_stats)
 
     sv = sub.add_parser("serve", help="launch the web UI (upload resume, get a digest)")
     sv.add_argument("--host", default="127.0.0.1")

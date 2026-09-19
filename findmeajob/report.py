@@ -97,7 +97,6 @@ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <div style="color:{MUTED};font-size:13px;margin:6px 0 20px 0;">
     {today} · scanned {scanned} postings · {candidates} passed filters ·
     {len(jobs)} made the cut<br>
-    tracker: {stats.get('tracked', 0)} seen · {stats.get('applied', 0)} applied
   </div>
   {body}
   <div style="color:{MUTED};font-size:11px;line-height:1.6;margin-top:18px;

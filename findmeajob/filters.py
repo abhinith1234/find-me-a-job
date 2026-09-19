@@ -58,6 +58,7 @@ def prefilter(jobs: list[Job], cfg: dict) -> list[Job]:
     exc = cfg.get("exclude_titles") or []
     locs = [l.lower() for l in (cfg.get("locations") or [])]
     allow_remote = bool(cfg.get("allow_remote", True))
+    preferred = [p.lower() for p in (cfg.get("preferred_locations") or []) if p]
     max_age = cfg.get("max_age_days")
     cutoff = datetime.now(timezone.utc) - timedelta(days=max_age) if max_age else None
 
@@ -82,6 +83,12 @@ def prefilter(jobs: list[Job], cfg: dict) -> list[Job]:
                 continue
 
         kept.append(j)
+
+    if preferred:
+        def location_priority(job: Job) -> int:
+            hay = job.location.lower()
+            return 0 if any(place in hay for place in preferred) else 1
+        kept.sort(key=location_priority)
 
     print(f"  prefilter: {len(jobs)} -> {len(kept)} "
           f"(dropped title={stats['title']} location={stats['location']} stale={stats['age']})")

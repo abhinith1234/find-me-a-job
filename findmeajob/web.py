@@ -5,8 +5,8 @@ from the uploaded resume, runs fetch -> prefilter -> screen -> draft -> digest,
 and (optionally) emails the digest to the address the user typed. The digest is
 also viewable in the browser, so it works even with SMTP unconfigured.
 
-Runs are serialised with a lock: profile.json, seen.json and out/digest.html are
-shared files, so two pipelines at once would corrupt each other. For a personal,
+Runs are serialised with a lock: profile.json and out/digest.html are shared
+files, so two pipelines at once would corrupt each other. For a personal,
 single-user tool that is the right trade-off.
 
     python -m findmeajob serve
@@ -524,7 +524,7 @@ def _build_profile(resume_path: Path, profile_file: Path) -> None:
 
 
 def run_server(host: str = "127.0.0.1", port: int = 5000) -> None:
-    # The pipeline reads/writes config.yaml, profile.json, seen.json and out/
+    # The pipeline reads/writes config.yaml, profile.json and out/
     # by relative path, so anchor the process at the project root.
     os.chdir(ROOT)
     _load_env()

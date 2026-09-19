@@ -56,6 +56,28 @@ companies:
   # Indian product / startups / fintech / consumer tech
   - {ats: greenhouse, slug: groww,             name: Groww}
   - {ats: greenhouse, slug: clear,             name: Clear}
+  - {ats: greenhouse, slug: razorpay,          name: Razorpay}
+  - {ats: greenhouse, slug: phonepe,           name: PhonePe}
+  - {ats: greenhouse, slug: myntra,            name: Myntra}
+  - {ats: greenhouse, slug: blenheimchalcot,   name: Blenheim Chalcot India}
+  - {ats: greenhouse, slug: forbes,            name: Forbes & Company Limited}
+  - {ats: greenhouse, slug: georgepjohnson,    name: George P. Johnson Experience Marketing}
+  - {ats: greenhouse, slug: podiuminfotech,    name: Podium Infotech}
+  - {ats: greenhouse, slug: alphagrep,         name: AlphaGrep Securities}
+  - {ats: greenhouse, slug: go2andaman,        name: Go2Andaman}
+  - {ats: greenhouse, slug: inmobi,            name: InMobi Advertising}
+  - {ats: greenhouse, slug: ghx,               name: GHX India}
+  - {ats: greenhouse, slug: modmed,            name: ModMed India}
+  - {ats: greenhouse, slug: sila,              name: SILA}
+  - {ats: greenhouse, slug: graviton,          name: Graviton Research Capital}
+  - {ats: greenhouse, slug: shubhashray,       name: Shubh Shray Housing India}
+  - {ats: greenhouse, slug: paypay,            name: PayPay India}
+  - {ats: greenhouse, slug: trufru,            name: Tru Fru}
+  - {ats: greenhouse, slug: twinhealth,        name: Twin Health India}
+  - {ats: greenhouse, slug: nksecurities,      name: NK Securities}
+  - {ats: greenhouse, slug: sony,              name: Sony Music Entertainment}
+  - {ats: greenhouse, slug: valpro,            name: ValPro}
+  - {ats: greenhouse, slug: triper,            name: Triper}
 
   # Legacy / ATS examples
   - {ats: lever, slug: voleon, name: Voleon}

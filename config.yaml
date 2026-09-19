@@ -67,6 +67,4 @@ max_per_digest: 5         # hard cap on expensive draft calls per run
 # --- paths ------------------------------------------------------------------
 companies_file: companies.yaml
 profile_file: profile.json
-seen_file: seen.json
 digest_file: out/digest.html
-tracker_csv: out/tracker.csv
