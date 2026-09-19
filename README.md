@@ -185,12 +185,15 @@ or applied counters.
 
 ## Email
 
-For Gmail, use an App Password rather than your normal password:
+For Brevo SMTP:
 
 ```env
-SMTP_USER=you@gmail.com
-SMTP_PASS=your-gmail-app-password
-MAIL_TO=you@gmail.com
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=your-brevo-smtp-login
+SMTP_PASS=your-brevo-smtp-key
+SMTP_FROM=your-verified-sender@example.com
+MAIL_TO=your-recipient@example.com
 ```
 
 The UI's email mode uses these settings. Browser mode does not send mail.

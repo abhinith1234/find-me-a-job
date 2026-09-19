@@ -6,16 +6,17 @@ import smtplib
 from email.message import EmailMessage
 
 
-def send(subject: str, html_body: str) -> None:
+def send(subject: str, html_body: str, to_addr: str | None = None) -> None:
     host = os.getenv("SMTP_HOST", "smtp.gmail.com")
     port = int(os.getenv("SMTP_PORT", "587"))
     user = os.environ["SMTP_USER"]
     password = os.environ["SMTP_PASS"]
-    to_addr = os.getenv("MAIL_TO", user)
+    to_addr = to_addr or os.getenv("MAIL_TO", user)
+    from_addr = os.getenv("SMTP_FROM", user)
 
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = user
+    msg["From"] = from_addr
     msg["To"] = to_addr
     msg.set_content("This digest is HTML. Open it in an HTML-capable client.")
     msg.add_alternative(html_body, subtype="html")

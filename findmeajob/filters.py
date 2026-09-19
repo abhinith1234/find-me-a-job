@@ -64,10 +64,6 @@ def prefilter(jobs: list[Job], cfg: dict) -> list[Job]:
 
     kept, stats = [], {"title": 0, "location": 0, "age": 0}
     for j in jobs:
-        if not _any_match(inc, j.title) or (exc and _any_match(exc, j.title)):
-            stats["title"] += 1
-            continue
-
         if locs:
             hay = f"{j.location} {j.title}".lower()
             is_remote = allow_remote and any(h in hay for h in REMOTE_HINTS)
@@ -75,6 +71,10 @@ def prefilter(jobs: list[Job], cfg: dict) -> list[Job]:
             if not is_remote and not in_india and not any(l in hay for l in locs):
                 stats["location"] += 1
                 continue
+
+        if not _any_match(inc, j.title) or (exc and _any_match(exc, j.title)):
+            stats["title"] += 1
+            continue
 
         if cutoff:
             posted = _parse_date(j.posted_at)

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Filtered jobs - Find Me A Job</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px 20px; background: #0f1115; color: #e6e8ec; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    .muted { color: #8b93a3; font-size: 13px; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
+    a.btn { display: inline-block; padding: 10px 15px; border-radius: 8px; background: #7c9cff; color: #0f1115; font-weight: 800; text-decoration: none; }
+    a.secondary { background: #2b3345; color: #e6e8ec; }
+    .table-wrap { overflow: auto; background: #171a21; border: 1px solid #262b36; border-radius: 12px; }
+    table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid #262b36; text-align: left; vertical-align: top; }
+    th { position: sticky; top: 0; background: #202532; color: #c8ccd4; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    tr:last-child td { border-bottom: 0; }
+    td.title { min-width: 240px; font-weight: 700; }
+    td.description { max-width: 440px; color: #b9c0cc; line-height: 1.45; }
+    td.location { white-space: nowrap; }
+    a.job-link { color: #9db4ff; white-space: nowrap; }
+    .empty { padding: 24px; color: #8b93a3; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Filtered jobs</h1>
+    <div class="muted">{{ rows|length }} jobs passed the initial location, title, and freshness filters.</div>
+    <div class="toolbar">
+      <a class="btn" href="{{ url_for('download_filtered_jobs', job_id=job_id) }}">Download CSV</a>
+      <a class="btn secondary" href="{{ url_for('status', job_id=job_id) }}">Back to results</a>
+    </div>
+    {% if rows %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Company</th><th>Title</th><th>Location</th><th>Responsibilities</th><th>Apply</th></tr></thead>
+          <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.company }}</td>
+              <td class="title">{{ row.title }}</td>
+              <td class="location">{{ row.location }}</td>
+              <td class="description">{{ row.description[:400] }}{% if row.description|length > 400 %}...{% endif %}</td>
+              <td><a class="job-link" href="{{ row.url }}" target="_blank" rel="noopener">Open job</a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">No jobs passed the initial filters.</div>
+    {% endif %}
+  </div>
+</body>
+</html>

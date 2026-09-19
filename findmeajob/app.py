@@ -6,8 +6,10 @@ A human reads the digest, edits the note, and presses submit.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -95,9 +97,22 @@ def cmd_run(args) -> int:
         return 1
     filters = cfg.get("filters", {}) or {}
     profile_locations = profile.get("preferred_locations") or profile.get("locations") or []
-    if profile_locations:
+    profile_titles = [str(title).strip() for title in profile.get("target_titles", [])
+                      if str(title).strip()]
+    if profile_locations or profile_titles:
         filters = dict(filters)
-        filters["preferred_locations"] = profile_locations
+        if profile_locations:
+            filters["preferred_locations"] = profile_locations
+        if profile_titles:
+            configured_titles = list(filters.get("include_titles") or [])
+            filters["include_titles"] = configured_titles + [
+                re.escape(title) for title in profile_titles
+                if title.lower() not in {pattern.lower() for pattern in configured_titles}
+            ]
+    if profile_titles:
+        print(f"  title roles from resume: {', '.join(profile_titles)}")
+    if profile_locations:
+        print(f"  preferred locations from resume: {', '.join(map(str, profile_locations))}")
 
     # ---- 1. fetch
     print("\n[1/5] fetching boards")
@@ -118,6 +133,18 @@ def cmd_run(args) -> int:
     print("\n[2/5] filtering")
     jobs = prefilter(jobs, filters)
     passed_filters = len(jobs)
+    filtered_path = getattr(args, "web_filtered_path", None)
+    if filtered_path:
+        filtered_file = Path(filtered_path)
+        filtered_file.parent.mkdir(parents=True, exist_ok=True)
+        with filtered_file.open("w", newline="", encoding="utf-8-sig") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(("job_id", "company", "title", "location", "url",
+                             "description"))
+            writer.writerows(
+                (job.job_id, job.company, job.title, job.location, job.url,
+                 job.description)
+                for job in jobs)
     print(f"  matching jobs: {len(jobs)}")
     candidates = len(jobs)
     if args.limit:
@@ -207,7 +234,7 @@ def cmd_run(args) -> int:
 
 
     print(f"\nfunnel: {scanned} scanned -> {passed_filters} passed filters "
-          f"-> {candidates} new -> {len(shortlist)} in digest")
+            f"-> {candidates} candidates -> {len(shortlist)} in digest")
     print(f"subject: {subject}")
     return 0
 
@@ -219,6 +246,22 @@ def cmd_serve(args) -> int:
         print("Flask is not installed. Run: pip install flask")
         return 1
     run_server(host=args.host, port=args.port)
+    return 0
+
+
+def cmd_test_email(args) -> int:
+    recipient = args.to or os.getenv("MAIL_TO")
+    if not recipient:
+        print("Provide a recipient with --to or set MAIL_TO in .env")
+        return 1
+    subject = "Find Me A Job - Brevo SMTP test"
+    body = "<h2>Brevo SMTP test</h2><p>Your Find Me A Job email configuration is working.</p>"
+    try:
+        notify.send(subject, body, to_addr=recipient)
+    except Exception as exc:
+        print(f"email test failed: {type(exc).__name__}: {exc}")
+        return 1
+    print(f"email test accepted by SMTP server for {recipient}")
     return 0
 
 
@@ -249,6 +292,10 @@ def main(argv=None) -> int:
     sv.add_argument("--host", default="127.0.0.1")
     sv.add_argument("--port", type=int, default=5000)
     sv.set_defaults(func=cmd_serve)
+
+    se = sub.add_parser("test-email", help="send a small SMTP test email")
+    se.add_argument("--to", help="recipient email address; defaults to MAIL_TO")
+    se.set_defaults(func=cmd_test_email)
 
     args = p.parse_args(argv)
     return args.func(args)

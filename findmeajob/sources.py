@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, asdict, field
+from pathlib import Path
 from typing import Any, Iterable
 
 import requests
@@ -244,29 +246,86 @@ def smartrecruiters_description(detail: Any) -> str:
     return "\n\n".join(c for c in chunks if c).strip()
 
 
+def _as_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except (TypeError, ValueError):
+            return {}
+        return decoded if isinstance(decoded, dict) else {}
+    return {}
+
+
+def _payload_value(payload: Any, names: tuple[str, ...]) -> Any:
+    """Find a useful value in OpenJobData's normalized/raw JSON payloads."""
+    data = _as_mapping(payload)
+    if not data:
+        return None
+    for name in names:
+        value = data.get(name)
+        if isinstance(value, str) and value.strip():
+            return value
+        if value is not None and not isinstance(value, (dict, list)):
+            return value
+    for value in data.values():
+        if isinstance(value, dict):
+            found = _payload_value(value, names)
+            if found is not None:
+                return found
+    return None
+
+
+def _openjobdata_row_description(row: dict[str, Any]) -> str:
+    direct = row.get("description")
+    if direct:
+        return strip_html(str(direct))
+    for payload_name in ("job_model_json", "entire_json"):
+        value = _payload_value(row.get(payload_name),
+                               ("description", "description_html", "job_description",
+                                "jobDescription",
+                                "content", "body"))
+        if value:
+            return strip_html(str(value))
+    return ""
+
+
 def parse_openjobdata(rows: Iterable[dict[str, Any]],
-                      company: str = "OpenJobData") -> list[Job]:
-    """Map OpenJobData's normalized rows into the local Job contract."""
+                      company: str = "OpenJobData",
+                      companies: dict[Any, dict[str, Any]] | None = None) -> list[Job]:
+    """Map documented OpenJobData rows into the local Job contract."""
     out = []
+    seen: set[str] = set()
+    companies = companies or {}
     for row in rows:
         if row.get("status") not in (None, "active"):
             continue
+        job_key = str(row.get("id") or row.get("job_id") or "").strip()
+        if not job_key or job_key in seen:
+            continue
+        seen.add(job_key)
+        company_row = companies.get(row.get("company_id"), {})
+        company_name = (company_row.get("name") or row.get("company_name") or company)
         location = ", ".join(str(row.get(k) or "").strip()
                               for k in ("city", "region", "country")
                               if row.get(k))
+        if not location:
+            location = str(_payload_value(row.get("job_model_json"),
+                                          ("location", "location_name", "city")) or "").strip()
         workplace = str(row.get("workplace_type") or "").strip()
         if row.get("is_remote") or workplace.lower() == "remote":
             location = f"{location} (remote)".strip() if location else "Remote"
         out.append(Job(
-            job_id=f"openjobdata:{row.get('id') or row.get('job_id')}",
+            job_id=f"openjobdata:{job_key}",
             ats="openjobdata",
-            company=str(row.get("company_name") or company),
+            company=str(company_name),
             title=str(row.get("title") or "").strip(),
             location=location,
             url=str(row.get("apply_url") or "").strip(),
-            description=strip_html(str(row.get("description") or "")),
+            description=_openjobdata_row_description(row),
             posted_at=str(row.get("posted_at") or "") or None,
-            salary=str(row.get("salary") or "") or None,
+            salary=str(row.get("employment_type") or row.get("salary") or "") or None,
         ))
     return out
 
@@ -318,7 +377,12 @@ CUSTOM_FETCHERS = {
 
 def _fetch_openjobdata(slug: str, company: str,
                        sess: requests.Session | Any) -> list[Job]:
-    """Read the latest public minimal delta from OpenJobData's HF bucket."""
+    """Read OpenJobData's public daily delta, enriched with company metadata.
+
+    The 30-40 GB base dataset is deliberately opt-in via
+    ``OPENJOBDATA_INCLUDE_BASE=1``. Most daily runs only need the latest delta;
+    callers needing a complete initial import can enable the base shards.
+    """
     del sess  # HfFileSystem handles the public object-storage connection.
     try:
         from huggingface_hub import HfFileSystem
@@ -328,17 +392,40 @@ def _fetch_openjobdata(slug: str, company: str,
         return []
     try:
         fs = HfFileSystem()
+        cache_dir = Path(os.environ.get("OPENJOBDATA_CACHE_DIR",
+                           ".cache/openjobdata"))
+        base_prefix = "buckets/Invicto69/Jobs-Dataset-bucket/data/minimal"
         prefix = "buckets/Invicto69/Jobs-Dataset-bucket/data/minimal/changes"
         files = sorted(fs.glob(f"{prefix}/*.parquet"))
         if not files:
             print("  ! openjobdata -> no daily delta files found")
             return []
+        rows: list[dict[str, Any]] = []
+
+        def read_parquet(remote_path: str) -> list[dict[str, Any]]:
+            local_path = cache_dir / remote_path.rsplit("/", 1)[-1]
+            if local_path.exists():
+                return pq.read_table(local_path).to_pylist()
+            with fs.open(remote_path, "rb") as stream:
+                table = pq.read_table(stream)
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            pq.write_table(table, local_path)
+            return table.to_pylist()
+
+        if os.environ.get("OPENJOBDATA_INCLUDE_BASE") == "1":
+            base_files = sorted(fs.glob(f"{base_prefix}/part-*.parquet"))
+            print(f"  openjobdata base shards: {len(base_files)}")
+            for path in base_files:
+                rows.extend(read_parquet(path))
         latest = files[-1]
         print(f"  openjobdata latest delta: {latest.rsplit('/', 1)[-1]}")
-        with fs.open(latest, "rb") as stream:
-            table = pq.read_table(stream)
-        rows = table.to_pylist()
-        return parse_openjobdata(rows, company)
+        rows.extend(read_parquet(latest))
+
+        companies_path = "buckets/Invicto69/Jobs-Dataset-bucket/data/companies/companies.parquet"
+        company_rows: dict[Any, dict[str, Any]] = {}
+        if fs.exists(companies_path):
+            company_rows = {r.get("id"): r for r in read_parquet(companies_path)}
+        return parse_openjobdata(rows, company, company_rows)
     except Exception as exc:
         print(f"  ! openjobdata -> {type(exc).__name__}: {exc}")
         return []
@@ -378,7 +465,11 @@ def hydrate(jobs: list[Job], session: requests.Session | None = None) -> list[Jo
     causes detail requests for title/location survivors.
     """
     sess = session or requests.Session()
-    for j in jobs:
+    pending = [j for j in jobs if not j.description
+               and j.ats in {"smartrecruiters", "openjobdata"}]
+    if pending:
+        print(f"  fetching descriptions: {len(pending)} jobs")
+    for index, j in enumerate(pending, start=1):
         if j.description:
             continue
         if j.ats == "smartrecruiters":
@@ -388,6 +479,8 @@ def hydrate(jobs: list[Job], session: requests.Session | None = None) -> list[Jo
             url = _openjobdata_detail_url(j)
         else:
             continue
+        print(f"  description {index}/{len(pending)}: {j.company} — {j.title[:70]}",
+              flush=True)
         try:
             r = sess.get(url, headers=UA, timeout=TIMEOUT)
             if r.status_code == 200:
@@ -395,6 +488,8 @@ def hydrate(jobs: list[Job], session: requests.Session | None = None) -> list[Jo
                     j.description = smartrecruiters_description(r.json())
                 else:
                     j.description = _openjobdata_description(r)
+                print(f"    loaded {len(j.description)} description characters",
+                      flush=True)
             else:
                 print(f"  ! {j.ats} detail -> HTTP {r.status_code}")
         except Exception as e:

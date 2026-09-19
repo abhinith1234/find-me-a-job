@@ -65,14 +65,20 @@
         <span class="badge done">Done</span>
         <p class="msg">
           {% if job.emailed %}
-            Digest emailed to <strong>{{ job.email }}</strong>.
+            Job matches emailed to <strong>{{ job.email }}</strong>.
           {% else %}
-            Digest built for browser viewing. {% if job.digest %}Open it below.{% endif %}
+            Job matches built for browser viewing. {% if job.digest %}Open them below.{% endif %}
           {% endif %}
         </p>
         {% if job.digest %}
           <a class="btn" href="{{ url_for('digest', job_id=job_id) }}" target="_blank">
             Open job matches →
+          </a>
+          <a class="btn" href="{{ url_for('filtered_jobs', job_id=job_id) }}">
+            View filtered jobs
+          </a>
+          <a class="btn" href="{{ url_for('resend', job_id=job_id) }}">
+            Edit and send email
           </a>
         {% endif %}
       {% elif job.state == 'error' %}

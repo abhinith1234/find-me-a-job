@@ -14,6 +14,7 @@ single-user tool that is the right trade-off.
 from __future__ import annotations
 
 import io
+import csv
 import json
 import os
 import platform
@@ -30,7 +31,7 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
                    send_file, url_for)
 from werkzeug.utils import secure_filename
 
-from . import ai
+from . import ai, notify
 from .app import ROOT, _cfg, _load_env, cmd_run
 from .backends import LLMError, resolve
 
@@ -203,6 +204,7 @@ def create_app() -> Flask:
         return jsonify({
             "state": _OLLAMA_INSTALL_STATE,
             "ollama_installed": bool(ollama),
+            "ollama_install_complete": _OLLAMA_INSTALL_STATE == "completed",
             "model": model,
             "model_installed": model in installed,
             "model_state": model_state if _OLLAMA_MODEL_NAME == model else "idle",
@@ -290,6 +292,7 @@ def create_app() -> Flask:
 
         JOBS[job_id] = {
             "state": "queued", "email": email or "browser preview", "filename": upload.filename,
+            "send": send,
             "log": "[queued] Request accepted; waiting for the pipeline lock.\n",
             "digest": False, "emailed": False, "error": None,
             "resume_path": str(saved_resume), "customize": {},
@@ -316,6 +319,51 @@ def create_app() -> Flask:
         if not path.exists():
             abort(404)
         return send_file(path)
+
+    @app.route("/filtered-jobs/<job_id>", methods=["GET"])
+    def filtered_jobs(job_id: str):
+        job = JOBS.get(job_id)
+        path = ROOT / "out" / f"{job_id}-filtered-jobs.csv"
+        if job is None or not path.exists():
+            abort(404)
+        with path.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        return render_template("filtered_jobs.html", job=job, job_id=job_id,
+                               rows=rows)
+
+    @app.route("/filtered-jobs/<job_id>/download", methods=["GET"])
+    def download_filtered_jobs(job_id: str):
+        job = JOBS.get(job_id)
+        path = ROOT / "out" / f"{job_id}-filtered-jobs.csv"
+        if job is None or not path.exists():
+            abort(404)
+        return send_file(path, as_attachment=True,
+                         download_name=f"{job_id}-filtered-jobs.csv")
+
+    @app.route("/resend/<job_id>", methods=["GET", "POST"])
+    def resend(job_id: str):
+        job = JOBS.get(job_id)
+        path = ROOT / "out" / f"{job_id}.html"
+        if job is None or not path.exists():
+            abort(404)
+        _load_env(str(ROOT / ".env"))
+        message = None
+        recipient = request.form.get("recipient") or job.get("email")
+        if not EMAIL_RE.match(recipient or ""):
+            recipient = os.getenv("MAIL_TO", "")
+        subject = request.form.get("subject") or f"Your job matches"
+        body = request.form.get("body") or path.read_text(encoding="utf-8")
+        if request.method == "POST":
+            try:
+                if not EMAIL_RE.match(recipient or ""):
+                    raise ValueError("No valid recipient configured. Set MAIL_TO or rerun with an email address.")
+                notify.send(subject, body, to_addr=recipient)
+                message = f"Email sent to {recipient}."
+            except Exception as exc:  # surface SMTP configuration errors in UI
+                message = f"Email failed: {type(exc).__name__}: {exc}"
+        return render_template("resend.html", job=job, job_id=job_id,
+                       recipient=recipient, subject=subject, body=body,
+                       message=message)
 
     @app.route("/customize/<run_id>/<path:job_id>", methods=["GET", "POST"])
     def customize(run_id: str, job_id: str):
@@ -389,6 +437,7 @@ def _worker(job_id: str, resume_path: Path, email: str, opts: Namespace) -> None
                 limit=opts.limit,
                 web_job_id=job_id,
                 resume_path=opts.resume_path,
+                web_filtered_path=str(ROOT / "out" / f"{job_id}-filtered-jobs.csv"),
             )
             cmd_run(args)
             print("[run] Pipeline complete", flush=True)
