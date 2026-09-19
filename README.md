@@ -169,34 +169,63 @@ Supported providers:
 | Google Gemini | `gemini` | `GEMINI_API_KEY` | Yes |
 | Ollama | `ollama` | None | Text extraction |
 | Hugging Face | `huggingface` | `HF_TOKEN` | Text extraction |
-| Groq | `groq` | `GROQ_API_KEY` | Text extraction |
-| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` | Yes |
-| OpenAI-compatible | `openai-compatible` | `GROQ_API_KEY` and `LLM_BASE_URL` | Text extraction |
+| OpenAI-compatible | `openai-compatible` | provider-specific key and `LLM_BASE_URL` | Text extraction |
 
-For PDF resumes, Gemini and Anthropic can read the PDF directly. Other providers
-use local text extraction; scanned image-only PDFs should be exported to text or
-sent to a document-capable provider.
+For PDF resumes, Gemini can read the PDF directly. Other providers use local text
+extraction; scanned image-only PDFs should be exported to text or sent to a
+document-capable provider.
 
 ## Tracking policy
 
-There is no `seen.json` deduplication or application-tracking feature. Every run
-processes the current jobs that pass the filters. The digest does not display seen
-or applied counters.
+Normal CLI and UI runs process the current jobs that pass the filters and do not
+deduplicate or track previous results. Scheduled email runs are different: they
+use the local, gitignored `old_ones.json` file to avoid emailing the same job
+again. A job is added to `old_ones.json` only after its email is accepted by the
+SMTP server. The digest does not display tracking or application counters.
 
 ## Email
 
-For Brevo SMTP:
+### Brevo setup
+
+1. Create or sign in to your Brevo account: <https://app.brevo.com/>
+2. Open **Transactional** → **Settings** → **SMTP & API**.
+3. In the SMTP section, create an SMTP key. Copy it immediately; Brevo may not
+  show the full key again.
+4. Open **Senders & IP** → **Senders**, add `coconut.ai.labs@gmail.com`, and
+  complete the verification email. Brevo must verify this address before it can
+  be used as `SMTP_FROM`.
+5. Review delivery activity at <https://app.brevo.com/transactional/email/real-time>.
+6. Put the settings in the local `.env` file:
 
 ```env
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
 SMTP_USER=your-brevo-smtp-login
 SMTP_PASS=your-brevo-smtp-key
-SMTP_FROM=your-verified-sender@example.com
+SMTP_FROM=coconut.ai.labs@gmail.com
 MAIL_TO=your-recipient@example.com
 ```
 
-The UI's email mode uses these settings. Browser mode does not send mail.
+`SMTP_USER` is the Brevo SMTP login, not necessarily the sender address.
+`SMTP_FROM` must be a verified Brevo sender. Keep `.env` private; it is ignored
+by Git.
+
+Test delivery without running the job search:
+
+```powershell
+.\.venv\Scripts\python.exe -m findmeajob test-email --to your-recipient@example.com
+```
+
+On macOS/Linux:
+
+```bash
+.venv/bin/python -m findmeajob test-email --to your-recipient@example.com
+```
+
+The command confirms that Brevo accepted the message. Check Inbox and Spam/Junk,
+and use Brevo's real-time activity page to diagnose delivery. The UI's email
+mode and the daily scheduler use the same settings. Browser mode does not send
+mail.
 
 ### Test email delivery
 
