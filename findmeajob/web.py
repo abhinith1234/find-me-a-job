@@ -52,6 +52,27 @@ JOBS: dict[str, dict] = {}
 _RUN_LOCK = threading.Lock()
 _OLLAMA_INSTALL_PROCESS: subprocess.Popen | None = None
 _OLLAMA_INSTALL_STATE = "idle"
+_OLLAMA_MODEL_PROCESS: subprocess.Popen | None = None
+_OLLAMA_MODEL_NAME: str | None = None
+_OLLAMA_MODEL_STATE = "idle"
+
+
+def _save_local_secret(name: str, value: str) -> None:
+    path = ROOT / ".env"
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    prefix = f"{name}="
+    replaced = False
+    updated = []
+    for line in lines:
+        if line.startswith(prefix):
+            updated.append(f"{name}={value}")
+            replaced = True
+        else:
+            updated.append(line)
+    if not replaced:
+        updated.append(f"{name}={value}")
+    path.write_text("\n".join(updated) + "\n", encoding="utf-8")
+    os.environ[name] = value
 
 
 class _LiveLog:
@@ -99,10 +120,22 @@ def _ollama_install_command() -> list[str] | str:
     return ["bash", "-lc", "curl -fsSL https://ollama.com/install.sh | sh"]
 
 
+def _ollama_executable() -> str | None:
+    found = shutil.which("ollama")
+    if found:
+        return found
+    if platform.system() == "Windows":
+        installed = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama" / "ollama.exe"
+        if installed.exists():
+            return str(installed)
+    return None
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_BYTES
     app.secret_key = os.urandom(24)
+    _load_env()
 
     @app.route("/", methods=["GET"])
     def index():
@@ -110,7 +143,8 @@ def create_app() -> Flask:
         return render_template("index.html", error=None,
                                ollama_install_cmd=install_cmd,
                                ollama_install_url=install_url,
-                               ollama_os_label=label)
+                               ollama_os_label=label,
+                               gemini_key_saved=bool(os.environ.get("GEMINI_API_KEY")))
 
     @app.route("/install-ollama", methods=["POST"])
     def install_ollama():
@@ -151,7 +185,52 @@ def create_app() -> Flask:
             returncode = process.poll()
             if returncode is not None:
                 _OLLAMA_INSTALL_STATE = "completed" if returncode == 0 else "failed"
-        return jsonify({"state": _OLLAMA_INSTALL_STATE})
+        model = request.args.get("model", "").strip()
+        ollama = _ollama_executable()
+        installed = []
+        if ollama:
+            try:
+                result = subprocess.run(
+                    [ollama, "list"], capture_output=True, text=True, check=False)
+                installed = [line.split()[0] for line in result.stdout.splitlines()[1:]
+                             if line.split()]
+            except OSError:
+                pass
+        model_process = _OLLAMA_MODEL_PROCESS
+        model_state = _OLLAMA_MODEL_STATE
+        if model_process is not None and model_process.poll() is not None:
+            model_state = "completed" if model_process.returncode == 0 else "failed"
+        return jsonify({
+            "state": _OLLAMA_INSTALL_STATE,
+            "ollama_installed": bool(ollama),
+            "model": model,
+            "model_installed": model in installed,
+            "model_state": model_state if _OLLAMA_MODEL_NAME == model else "idle",
+        })
+
+    @app.route("/install-ollama-model", methods=["POST"])
+    def install_ollama_model():
+        global _OLLAMA_MODEL_PROCESS, _OLLAMA_MODEL_NAME, _OLLAMA_MODEL_STATE
+        model = (request.form.get("model") or "").strip()
+        if model not in LOCAL_MODELS:
+            return jsonify({"error": "Choose a supported Ollama model."}), 400
+        ollama = _ollama_executable()
+        if ollama is None:
+            return jsonify({
+                "error": "Ollama is not installed. Install Ollama first, then try again."
+            }), 400
+        if _OLLAMA_MODEL_PROCESS is not None and _OLLAMA_MODEL_PROCESS.poll() is None:
+            return jsonify({"state": "running", "model": _OLLAMA_MODEL_NAME})
+        try:
+            _OLLAMA_MODEL_PROCESS = subprocess.Popen(
+                [ollama, "pull", model], stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, shell=False, start_new_session=True)
+            _OLLAMA_MODEL_NAME = model
+            _OLLAMA_MODEL_STATE = "running"
+            return jsonify({"state": "running", "model": model})
+        except OSError as exc:
+            _OLLAMA_MODEL_STATE = "failed"
+            return jsonify({"error": f"Could not start Ollama: {exc}"}), 500
 
     @app.route("/run", methods=["POST"])
     def run():
@@ -164,6 +243,11 @@ def create_app() -> Flask:
         provider = (request.form.get("provider") or "ollama").strip().lower()
         model = (request.form.get("model") or "").strip()
         token = (request.form.get("token") or "").strip()
+        remember_gemini = request.form.get("remember_gemini") == "on"
+        if provider == "gemini" and not token:
+            token = os.environ.get("GEMINI_API_KEY", "").strip()
+        if provider == "gemini" and token and remember_gemini:
+            _save_local_secret("GEMINI_API_KEY", token)
 
         if delivery not in {"browser", "email"}:
             return render_template("index.html", error="Choose a delivery option."), 400
@@ -362,7 +446,8 @@ def _configure_provider(opts: Namespace) -> dict[str, str | None]:
         elif provider == "gemini":
             os.environ["GEMINI_API_KEY"] = opts.token
         elif provider == "ollama":
-            if shutil.which("ollama") is None:
+            ollama = _ollama_executable()
+            if ollama is None:
                 install_cmd, install_url, label = _ollama_install_details()
                 raise LLMError(
                     "Ollama is not installed. Install it for this "
@@ -371,11 +456,11 @@ def _configure_provider(opts: Namespace) -> dict[str, str | None]:
                 )
             print(f"checking local model {model} ...")
             result = subprocess.run(
-                ["ollama", "list"], capture_output=True, text=True, check=False)
+                [ollama, "list"], capture_output=True, text=True, check=False)
             if model not in result.stdout:
                 print(f"downloading local model {model} ...")
                 pull = subprocess.Popen(
-                    ["ollama", "pull", model], stdout=subprocess.PIPE,
+                    [ollama, "pull", model], stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT, text=True)
                 lines = []
                 for line in pull.stdout or []:

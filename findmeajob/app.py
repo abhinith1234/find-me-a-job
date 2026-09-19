@@ -112,12 +112,15 @@ def cmd_run(args) -> int:
         print("no postings fetched — check the slugs in companies.yaml")
         return 1
 
-    # ---- 2. prefilter + dedupe (deterministic, free, no LLM)
+    # ---- 2. prefilter + optional email dedupe (deterministic, free, no LLM)
     print("\n[2/5] filtering")
     jobs = prefilter(jobs, filters)
     passed_filters = len(jobs)
-    jobs = store.unseen(jobs)
-    print(f"  new since last run: {len(jobs)}")
+    if args.send:
+        jobs = store.unseen(jobs)
+        print(f"  new since last email: {len(jobs)}")
+    else:
+        print(f"  browser preview: {len(jobs)} matching jobs")
     candidates = len(jobs)
     if args.limit:
         jobs = jobs[:args.limit]
@@ -204,13 +207,17 @@ def cmd_run(args) -> int:
     else:
         print("  --send not passed, email skipped")
 
-    store.record(jobs, emailed=sent)
-    csv_path = store.export_csv(cfg.get("tracker_csv", "out/tracker.csv"))
+    if args.send:
+        store.record(jobs, emailed=sent)
+        csv_path = store.export_csv(cfg.get("tracker_csv", "out/tracker.csv"))
+    else:
+        csv_path = None
 
     print(f"\nfunnel: {scanned} scanned -> {passed_filters} passed filters "
           f"-> {candidates} new -> {len(shortlist)} in digest")
     print(f"subject: {subject}")
-    print(f"tracker: {store.stats()}  ({csv_path})")
+    if args.send:
+        print(f"tracker: {store.stats()}  ({csv_path})")
     return 0
 
 

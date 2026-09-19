@@ -102,7 +102,7 @@
           Google Gemini (API key)
         </option>
       </select>
-      <div id="local-model-help" class="hint">The selected model downloads once and runs on this Mac. PDF text is extracted locally.</div>
+      <div id="local-model-help" class="hint">The selected model downloads once and runs on this computer. PDF text is extracted locally.</div>
       <div id="local-model-field">
         <label for="model">Local model</label>
         <select id="model" name="model">
@@ -110,6 +110,11 @@
           <option value="gemma2:2b">Gemma 2 2B</option>
           <option value="qwen2.5:1.5b">Qwen 2.5 1.5B</option>
         </select>
+        <div id="model-status" class="hint" hidden></div>
+        <button id="install-model-button" type="button" hidden
+                style="margin-top: 12px; background: #2ea043;">
+          Install selected model
+        </button>
       </div>
       <div id="token-field" hidden>
         <div class="label-line">
@@ -118,7 +123,14 @@
              target="_blank" rel="noopener noreferrer">Get a token</a>
         </div>
         <input id="token" name="token" type="password" autocomplete="off">
-        <div id="token-help" class="hint">Used only for this run and not written to the repository.</div>
+        <div id="token-help" class="hint">Used only for this run unless you choose to remember it locally.</div>
+        <label id="remember-gemini-field" class="row" hidden>
+          <input type="checkbox" name="remember_gemini">
+          Remember Gemini API key on this computer
+        </label>
+        {% if gemini_key_saved %}
+          <div id="saved-gemini-hint" class="hint">A Gemini API key is saved locally and will be reused automatically.</div>
+        {% endif %}
       </div>
 
       <button type="submit">Find me jobs</button>
@@ -126,6 +138,7 @@
 
     <script>
       const provider = document.getElementById('provider');
+      const model = document.getElementById('model');
       const delivery = document.getElementById('delivery');
       const emailField = document.getElementById('email-field');
       const email = document.getElementById('email');
@@ -136,12 +149,19 @@
       const tokenLabel = document.getElementById('token-label');
       const tokenLink = document.getElementById('token-link');
       const token = document.getElementById('token');
+      const rememberGeminiField = document.getElementById('remember-gemini-field');
+      const modelStatus = document.getElementById('model-status');
+      const installModelButton = document.getElementById('install-model-button');
       function updateProviderFields() {
         const local = provider.value === 'ollama';
         localField.hidden = !local;
         localHelp.hidden = !local;
         ollamaInstallForm.hidden = !local;
         tokenField.hidden = local;
+        rememberGeminiField.hidden = provider.value !== 'gemini';
+        if (local && model.value.startsWith('gemini-')) {
+          model.value = 'llama3.2:1b';
+        }
         token.required = !local;
         if (provider.value === 'huggingface') {
           tokenLabel.textContent = 'Hugging Face token';
@@ -156,6 +176,7 @@
         }
       }
       provider.addEventListener('change', updateProviderFields);
+      model.addEventListener('change', updateOllamaModelStatus);
       function updateDeliveryFields() {
         const emailMode = delivery.value === 'email';
         emailField.hidden = !emailMode;
@@ -164,6 +185,50 @@
       delivery.addEventListener('change', updateDeliveryFields);
       updateProviderFields();
       updateDeliveryFields();
+
+      async function updateOllamaModelStatus() {
+        if (provider.value !== 'ollama') {
+          modelStatus.hidden = true;
+          installModelButton.hidden = true;
+          return;
+        }
+        try {
+          const response = await fetch(`{{ url_for("ollama_install_status") }}?model=${encodeURIComponent(model.value)}`);
+          const data = await response.json();
+          modelStatus.hidden = false;
+          if (!data.ollama_installed) {
+            modelStatus.textContent = 'Ollama is not installed. Install Ollama first.';
+            installModelButton.hidden = true;
+          } else if (data.model_installed) {
+            modelStatus.textContent = `${model.value} is installed and ready.`;
+            installModelButton.hidden = true;
+          } else if (data.model_state === 'running') {
+            modelStatus.textContent = `Downloading ${model.value}...`;
+            installModelButton.hidden = true;
+            setTimeout(updateOllamaModelStatus, 2000);
+          } else if (data.model_state === 'failed') {
+            modelStatus.textContent = `Could not download ${model.value}. Try again.`;
+            installModelButton.hidden = false;
+          } else {
+            modelStatus.textContent = `${model.value} is not installed.`;
+            installModelButton.hidden = false;
+          }
+        } catch (error) {
+          modelStatus.hidden = false;
+          modelStatus.textContent = 'Could not check Ollama model status.';
+        }
+      }
+      installModelButton.addEventListener('click', async () => {
+        installModelButton.disabled = true;
+        const body = new URLSearchParams({model: model.value});
+        await fetch('{{ url_for("install_ollama_model") }}', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body,
+        });
+        await updateOllamaModelStatus();
+      });
+      updateOllamaModelStatus();
 
       const ollamaStatus = document.getElementById('ollama-status');
       async function updateOllamaStatus() {

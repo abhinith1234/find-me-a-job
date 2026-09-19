@@ -43,32 +43,7 @@ companies:
   # Some slugs are common public board names; verify each one before trusting the output.
 
   # Big 4 / consulting (India + global)
-  - {ats: greenhouse, slug: accenture,          name: Accenture}
-  - {ats: greenhouse, slug: deloitte,          name: Deloitte}
-  - {ats: greenhouse, slug: ey,                name: EY}
-  - {ats: greenhouse, slug: pwc,               name: PwC}
-  - {ats: greenhouse, slug: kpmg,              name: KPMG}
-  - {ats: greenhouse, slug: capgemini,         name: Capgemini}
-  - {ats: greenhouse, slug: cognizant,         name: Cognizant}
-  - {ats: greenhouse, slug: infosys,           name: Infosys}
-  - {ats: greenhouse, slug: wipro,             name: Wipro}
-  - {ats: greenhouse, slug: hcltech,           name: HCLTech}
-  - {ats: greenhouse, slug: techmahindra,      name: Tech Mahindra}
-  - {ats: greenhouse, slug: ltimindtree,       name: LTIMindtree}
-  - {ats: greenhouse, slug: tata-consultancy-services, name: TCS}
   - {ats: greenhouse, slug: tcs,               name: Tata Consultancy Services}
-  - {ats: greenhouse, slug: ibm,               name: IBM India}
-  - {ats: greenhouse, slug: microsoft,         name: Microsoft}
-  - {ats: greenhouse, slug: google,            name: Google}
-  - {ats: greenhouse, slug: amazon,            name: Amazon}
-  - {ats: greenhouse, slug: salesforce,        name: Salesforce}
-  - {ats: greenhouse, slug: adobe,             name: Adobe}
-  - {ats: greenhouse, slug: meta,              name: Meta}
-  - {ats: greenhouse, slug: netflix,           name: Netflix}
-  - {ats: greenhouse, slug: apple,             name: Apple}
-  - {ats: greenhouse, slug: oracle,            name: Oracle}
-  - {ats: greenhouse, slug: servicenow,        name: ServiceNow}
-  - {ats: greenhouse, slug: atlassian,         name: Atlassian}
   - {ats: greenhouse, slug: stripe,            name: Stripe}
   - {ats: greenhouse, slug: databricks,        name: Databricks}
   - {ats: greenhouse, slug: cloudflare,        name: Cloudflare}
@@ -76,72 +51,15 @@ companies:
   - {ats: greenhouse, slug: dropbox,           name: Dropbox}
   - {ats: greenhouse, slug: coinbase,          name: Coinbase}
   - {ats: greenhouse, slug: reddit,            name: Reddit}
-  - {ats: greenhouse, slug: openai,            name: OpenAI}
-  - {ats: greenhouse, slug: linear,            name: Linear}
-  - {ats: greenhouse, slug: vanta,             name: Vanta}
-  - {ats: greenhouse, slug: ramp,              name: Ramp}
-  - {ats: greenhouse, slug: notion,            name: Notion}
   - {ats: greenhouse, slug: airbnb,            name: Airbnb}
-  - {ats: greenhouse, slug: uber,              name: Uber}
-  - {ats: greenhouse, slug: doordash,          name: DoorDash}
-  - {ats: greenhouse, slug: square,            name: Block}
-  - {ats: greenhouse, slug: visa,              name: Visa}
-  - {ats: greenhouse, slug: mastercard,        name: Mastercard}
-  - {ats: greenhouse, slug: americanexpress,   name: American Express}
-  - {ats: greenhouse, slug: goldmansachs,      name: Goldman Sachs}
-  - {ats: greenhouse, slug: jpmorgan,          name: JPMorgan Chase}
-  - {ats: greenhouse, slug: morganstanley,     name: Morgan Stanley}
-  - {ats: greenhouse, slug: barclays,          name: Barclays}
-  - {ats: greenhouse, slug: hsbc,              name: HSBC}
-  - {ats: greenhouse, slug: standardchartered, name: Standard Chartered}
-  - {ats: greenhouse, slug: nib,               name: NIB}
 
   # Indian product / startups / fintech / consumer tech
-  - {ats: greenhouse, slug: phonepe,           name: PhonePe}
-  - {ats: greenhouse, slug: razorpay,          name: Razorpay}
   - {ats: greenhouse, slug: groww,             name: Groww}
-  - {ats: greenhouse, slug: cred,              name: CRED}
-  - {ats: greenhouse, slug: swiggy,            name: Swiggy}
-  - {ats: greenhouse, slug: zomato,            name: Zomato}
-  - {ats: greenhouse, slug: browserstack,      name: BrowserStack}
-  - {ats: greenhouse, slug: freshworks,        name: Freshworks}
-  - {ats: greenhouse, slug: meesho,            name: Meesho}
-  - {ats: greenhouse, slug: udaan,             name: Udaan}
-  - {ats: greenhouse, slug: urbancompany,      name: Urban Company}
-  - {ats: greenhouse, slug: postman,           name: Postman}
-  - {ats: greenhouse, slug: hasura,            name: Hasura}
   - {ats: greenhouse, slug: clear,             name: Clear}
-  - {ats: greenhouse, slug: fractal,           name: Fractal}
-  - {ats: greenhouse, slug: capillary,         name: Capillary}
-  - {ats: greenhouse, slug: dunzo,             name: Dunzo}
-  - {ats: greenhouse, slug: rippling,          name: Rippling}
-  - {ats: greenhouse, slug: delhivery,         name: Delhivery}
-  - {ats: greenhouse, slug: blackbuck,         name: BlackBuck}
-  - {ats: greenhouse, slug: rapido,            name: Rapido}
-  - {ats: greenhouse, slug: nykaa,             name: Nykaa}
-  - {ats: greenhouse, slug: upstox,            name: Upstox}
-  - {ats: greenhouse, slug: zerodha,           name: Zerodha}
-  - {ats: greenhouse, slug: paytm,             name: Paytm}
-  - {ats: greenhouse, slug: ola,               name: Ola}
-  - {ats: greenhouse, slug: myntra,            name: Myntra}
-  - {ats: greenhouse, slug: byjus,             name: BYJU'S}
-  - {ats: greenhouse, slug: hdfc,              name: HDFC Bank}
-  - {ats: greenhouse, slug: icici,             name: ICICI Bank}
-  - {ats: greenhouse, slug: sbi,               name: State Bank of India}
-  - {ats: greenhouse, slug: axisbank,          name: Axis Bank}
-  - {ats: greenhouse, slug: airtel,            name: Airtel}
-  - {ats: greenhouse, slug: jio,               name: Jio}
-  - {ats: greenhouse, slug: reliance,          name: Reliance}
-  - {ats: greenhouse, slug: marutisuzuki,      name: Maruti Suzuki}
-  - {ats: greenhouse, slug: tataelxsi,         name: Tata Elxsi}
-  - {ats: greenhouse, slug: tata,              name: Tata Group}
 
   # Legacy / ATS examples
   - {ats: lever, slug: voleon, name: Voleon}
-  - {ats: lever, slug: checkout, name: Checkout.com}
-  - {ats: lever, slug: girnarsoft, name: GirnarSoft}
   - {ats: ashby, slug: uniswap, name: Uniswap}
-  - {ats: ashby, slug: checkout, name: Checkout.com}
 
   # Public daily dataset covering additional ATSes, including Workday,
   # SmartRecruiters, iCIMS, and other enterprise career systems.

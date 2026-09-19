@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -371,28 +372,77 @@ def fetch_board(ats: str, slug: str, company: str | None = None,
 
 
 def hydrate(jobs: list[Job], session: requests.Session | None = None) -> list[Job]:
-    """Fill descriptions that require a second call (SmartRecruiters).
+    """Fill descriptions that require a second call.
 
-    Runs after the prefilter so we pay for a handful of survivors, not the
-    whole board — an enterprise SmartRecruiters slug can list thousands of
-    postings, almost all of which the title/location gate throws away.
+    This runs after the prefilter, so OpenJobData's large daily dataset only
+    causes detail requests for title/location survivors.
     """
     sess = session or requests.Session()
     for j in jobs:
-        if j.ats != "smartrecruiters" or j.description:
+        if j.description:
             continue
-        _, slug, jid = j.job_id.split(":", 2)
-        url = f"https://api.smartrecruiters.com/v1/companies/{slug}/postings/{jid}"
+        if j.ats == "smartrecruiters":
+            _, slug, jid = j.job_id.split(":", 2)
+            url = f"https://api.smartrecruiters.com/v1/companies/{slug}/postings/{jid}"
+        elif j.ats == "openjobdata":
+            url = _openjobdata_detail_url(j)
+        else:
+            continue
         try:
             r = sess.get(url, headers=UA, timeout=TIMEOUT)
             if r.status_code == 200:
-                j.description = smartrecruiters_description(r.json())
+                if j.ats == "smartrecruiters":
+                    j.description = smartrecruiters_description(r.json())
+                else:
+                    j.description = _openjobdata_description(r)
             else:
-                print(f"  ! smartrecruiters detail {jid} -> HTTP {r.status_code}")
+                print(f"  ! {j.ats} detail -> HTTP {r.status_code}")
         except Exception as e:
-            print(f"  ! smartrecruiters detail {jid} -> {type(e).__name__}: {e}")
+            print(f"  ! {j.ats} detail -> {type(e).__name__}: {e}")
         time.sleep(0.1)
     return jobs
+
+
+def _openjobdata_detail_url(job: Job) -> str:
+    """Prefer a structured ATS detail endpoint over the rendered apply page."""
+    url = job.url
+    match = re.search(r"https?://[^/]+/([^/]+)/(?:jobs?|job)/([^/?#]+)", url)
+    if ":greenhouse:" in job.job_id and match:
+        slug, jid = match.groups()
+        return f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs/{jid}?content=true"
+    match = re.search(r"https?://jobs\.lever\.co/([^/]+)/([^/?#]+)", url)
+    if ":lever:" in job.job_id and match:
+        slug, jid = match.groups()
+        return f"https://api.lever.co/v0/postings/{slug}/{jid}"
+    return url
+
+
+def _openjobdata_description(response: requests.Response) -> str:
+    """Extract descriptions from ATS JSON or a public HTML application page."""
+    content_type = response.headers.get("Content-Type", "").lower()
+    if "json" in content_type:
+        body = response.json()
+        if isinstance(body, dict):
+            for key in ("content", "description", "descriptionPlain", "descriptionHtml",
+                        "jobDescription"):
+                value = body.get(key)
+                if isinstance(value, str) and value.strip():
+                    return strip_html(value)
+            return strip_html(json.dumps(body, ensure_ascii=False))
+    text = response.text
+    scripts = re.findall(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        text, flags=re.I | re.S)
+    for raw in scripts:
+        try:
+            data = json.loads(html.unescape(raw.strip()))
+        except (TypeError, ValueError):
+            continue
+        values = data if isinstance(data, list) else [data]
+        for item in values:
+            if isinstance(item, dict) and item.get("description"):
+                return strip_html(str(item["description"]))
+    return strip_html(text)
 
 
 def fetch_all(companies: Iterable[dict], sleep: float = 0.25) -> list[Job]:

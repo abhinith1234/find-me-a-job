@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import base64
 import os
+import time
 from typing import Any
 
 import requests
@@ -125,12 +126,16 @@ class GeminiProvider(Provider):
     BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
     def _post(self, model: str, body: dict) -> str:
-        r = requests.post(
-            f"{self.BASE}/{model}:generateContent",
-            params={"key": self._env("GEMINI_API_KEY")},
-            json=body,
-            timeout=TIMEOUT,
-        )
+        for attempt in range(3):
+            r = requests.post(
+                f"{self.BASE}/{model}:generateContent",
+                params={"key": self._env("GEMINI_API_KEY")},
+                json=body,
+                timeout=TIMEOUT,
+            )
+            if r.status_code not in {429, 500, 502, 503, 504} or attempt == 2:
+                break
+            time.sleep(2 ** attempt)
         if r.status_code != 200:
             raise LLMError(f"gemini HTTP {r.status_code}: {r.text[:300]}")
         try:
