@@ -12,5 +12,9 @@ anthropic>=0.40
 # Web UI — only needed for `python -m findmeajob serve`.
 flask>=3.0
 
+# Optional public job-dataset source. Required only for the openjobdata entry.
+huggingface-hub>=0.30
+pyarrow>=18.0
+
 # Tests
 pytest>=8.0

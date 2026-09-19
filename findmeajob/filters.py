@@ -11,6 +11,29 @@ from datetime import datetime, timedelta, timezone
 from .sources import Job
 
 REMOTE_HINTS = ("remote", "anywhere", "work from home", "wfh", "distributed")
+INDIA_LOCATION_HINTS = (
+    "india",
+    "bangalore",
+    "bengaluru",
+    "hyderabad",
+    "pune",
+    "mumbai",
+    "delhi",
+    "new delhi",
+    "gurugram",
+    "gurgaon",
+    "noida",
+    "chennai",
+    "kolkata",
+    "ahmedabad",
+    "jaipur",
+    "kochi",
+    "coimbatore",
+    "visakhapatnam",
+    "trivandrum",
+    "thiruvananthapuram",
+    "ncr",
+)
 
 
 def _any_match(patterns: list[str], text: str) -> bool:
@@ -47,7 +70,8 @@ def prefilter(jobs: list[Job], cfg: dict) -> list[Job]:
         if locs:
             hay = f"{j.location} {j.title}".lower()
             is_remote = allow_remote and any(h in hay for h in REMOTE_HINTS)
-            if not is_remote and not any(l in hay for l in locs):
+            in_india = any(h in hay for h in INDIA_LOCATION_HINTS)
+            if not is_remote and not in_india and not any(l in hay for l in locs):
                 stats["location"] += 1
                 continue
 

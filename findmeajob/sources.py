@@ -243,6 +243,33 @@ def smartrecruiters_description(detail: Any) -> str:
     return "\n\n".join(c for c in chunks if c).strip()
 
 
+def parse_openjobdata(rows: Iterable[dict[str, Any]],
+                      company: str = "OpenJobData") -> list[Job]:
+    """Map OpenJobData's normalized rows into the local Job contract."""
+    out = []
+    for row in rows:
+        if row.get("status") not in (None, "active"):
+            continue
+        location = ", ".join(str(row.get(k) or "").strip()
+                              for k in ("city", "region", "country")
+                              if row.get(k))
+        workplace = str(row.get("workplace_type") or "").strip()
+        if row.get("is_remote") or workplace.lower() == "remote":
+            location = f"{location} (remote)".strip() if location else "Remote"
+        out.append(Job(
+            job_id=f"openjobdata:{row.get('id') or row.get('job_id')}",
+            ats="openjobdata",
+            company=str(row.get("company_name") or company),
+            title=str(row.get("title") or "").strip(),
+            location=location,
+            url=str(row.get("apply_url") or "").strip(),
+            description=strip_html(str(row.get("description") or "")),
+            posted_at=str(row.get("posted_at") or "") or None,
+            salary=str(row.get("salary") or "") or None,
+        ))
+    return out
+
+
 ENDPOINTS = {
     "greenhouse": ("https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true", parse_greenhouse),
     "lever":      ("https://api.lever.co/v0/postings/{slug}?mode=json", parse_lever),
@@ -286,6 +313,37 @@ CUSTOM_FETCHERS = {
     "personio": _fetch_personio,
     "smartrecruiters": _fetch_smartrecruiters,
 }
+
+
+def _fetch_openjobdata(slug: str, company: str,
+                       sess: requests.Session | Any) -> list[Job]:
+    """Read the latest public minimal delta from OpenJobData's HF bucket."""
+    del sess  # HfFileSystem handles the public object-storage connection.
+    try:
+        from huggingface_hub import HfFileSystem
+        import pyarrow.parquet as pq
+    except ImportError:
+        print("  ! openjobdata requires huggingface-hub and pyarrow")
+        return []
+    try:
+        fs = HfFileSystem()
+        prefix = "buckets/Invicto69/Jobs-Dataset-bucket/data/minimal/changes"
+        files = sorted(fs.glob(f"{prefix}/*.parquet"))
+        if not files:
+            print("  ! openjobdata -> no daily delta files found")
+            return []
+        latest = files[-1]
+        print(f"  openjobdata latest delta: {latest.rsplit('/', 1)[-1]}")
+        with fs.open(latest, "rb") as stream:
+            table = pq.read_table(stream)
+        rows = table.to_pylist()
+        return parse_openjobdata(rows, company)
+    except Exception as exc:
+        print(f"  ! openjobdata -> {type(exc).__name__}: {exc}")
+        return []
+
+
+CUSTOM_FETCHERS["openjobdata"] = _fetch_openjobdata
 
 
 def fetch_board(ats: str, slug: str, company: str | None = None,

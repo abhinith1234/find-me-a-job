@@ -26,7 +26,7 @@ from argparse import Namespace
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from flask import (Flask, abort, redirect, render_template, request,
+from flask import (Flask, abort, jsonify, redirect, render_template, request,
                    send_file, url_for)
 from werkzeug.utils import secure_filename
 
@@ -50,6 +50,8 @@ CUSTOMIZE_DATA = ROOT / "out" / "customize"
 # job_id -> {state, email, filename, log, digest, emailed, error}
 JOBS: dict[str, dict] = {}
 _RUN_LOCK = threading.Lock()
+_OLLAMA_INSTALL_PROCESS: subprocess.Popen | None = None
+_OLLAMA_INSTALL_STATE = "idle"
 
 
 class _LiveLog:
@@ -112,14 +114,22 @@ def create_app() -> Flask:
 
     @app.route("/install-ollama", methods=["POST"])
     def install_ollama():
+        global _OLLAMA_INSTALL_PROCESS, _OLLAMA_INSTALL_STATE
         try:
-            command = _ollama_install_command()
-            subprocess.Popen(command, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, shell=False,
-                             start_new_session=True)
+            if (_OLLAMA_INSTALL_PROCESS is not None
+                    and _OLLAMA_INSTALL_PROCESS.poll() is None):
+                message = "Ollama installation is already running."
+            else:
+                command = _ollama_install_command()
+                _OLLAMA_INSTALL_PROCESS = subprocess.Popen(
+                    command, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, shell=False,
+                    start_new_session=True)
+                _OLLAMA_INSTALL_STATE = "running"
+                message = "Ollama install started in the background. Watch the status below."
             return render_template(
                 "index.html",
-                error="Ollama install started in the background. Once it finishes, refresh the page and retry your model selection.",
+                error=message,
                 ollama_install_cmd=_ollama_install_details()[0],
                 ollama_install_url=_ollama_install_details()[1],
                 ollama_os_label=_ollama_install_details()[2],
@@ -132,6 +142,16 @@ def create_app() -> Flask:
                 ollama_install_url=_ollama_install_details()[1],
                 ollama_os_label=_ollama_install_details()[2],
             )
+
+    @app.route("/ollama-install-status", methods=["GET"])
+    def ollama_install_status():
+        global _OLLAMA_INSTALL_STATE
+        process = _OLLAMA_INSTALL_PROCESS
+        if process is not None:
+            returncode = process.poll()
+            if returncode is not None:
+                _OLLAMA_INSTALL_STATE = "completed" if returncode == 0 else "failed"
+        return jsonify({"state": _OLLAMA_INSTALL_STATE})
 
     @app.route("/run", methods=["POST"])
     def run():
@@ -346,7 +366,8 @@ def _configure_provider(opts: Namespace) -> dict[str, str | None]:
                 install_cmd, install_url, label = _ollama_install_details()
                 raise LLMError(
                     "Ollama is not installed. Install it for this "
-                    f"{label} machine: {install_cmd} | {install_url}"
+                    f"{label} machine. Run this command: {install_cmd}\n"
+                    f"Download page: {install_url}"
                 )
             print(f"checking local model {model} ...")
             result = subprocess.run(

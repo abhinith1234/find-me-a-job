@@ -58,11 +58,12 @@
       sends you a digest.
     </p>
 
-    <form action="{{ url_for('install_ollama') }}" method="post" style="margin-bottom: 18px;">
+    <form id="ollama-install-form" action="{{ url_for('install_ollama') }}" method="post" style="margin-bottom: 18px;">
       <button type="submit" style="margin-top: 0; background: #1f8fff;">
         Install Ollama for {{ ollama_os_label or 'this machine' }}
       </button>
     </form>
+    <div id="ollama-status" class="hint" hidden></div>
 
     {% if error %}<div class="err">{{ error }}</div>{% endif %}
 
@@ -130,6 +131,7 @@
       const email = document.getElementById('email');
       const localField = document.getElementById('local-model-field');
       const localHelp = document.getElementById('local-model-help');
+      const ollamaInstallForm = document.getElementById('ollama-install-form');
       const tokenField = document.getElementById('token-field');
       const tokenLabel = document.getElementById('token-label');
       const tokenLink = document.getElementById('token-link');
@@ -138,6 +140,7 @@
         const local = provider.value === 'ollama';
         localField.hidden = !local;
         localHelp.hidden = !local;
+        ollamaInstallForm.hidden = !local;
         tokenField.hidden = local;
         token.required = !local;
         if (provider.value === 'huggingface') {
@@ -161,6 +164,24 @@
       delivery.addEventListener('change', updateDeliveryFields);
       updateProviderFields();
       updateDeliveryFields();
+
+      const ollamaStatus = document.getElementById('ollama-status');
+      async function updateOllamaStatus() {
+        try {
+          const response = await fetch('{{ url_for("ollama_install_status") }}');
+          const data = await response.json();
+          if (data.state !== 'idle') {
+            ollamaStatus.hidden = false;
+            ollamaStatus.textContent = `Ollama installation: ${data.state}.`;
+            if (data.state === 'running') {
+              setTimeout(updateOllamaStatus, 2000);
+            }
+          }
+        } catch (error) {
+          // The main form remains usable if status polling is unavailable.
+        }
+      }
+      updateOllamaStatus();
     </script>
 
     <p class="foot">

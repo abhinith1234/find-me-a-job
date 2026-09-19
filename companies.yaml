@@ -143,6 +143,10 @@ companies:
   - {ats: ashby, slug: uniswap, name: Uniswap}
   - {ats: ashby, slug: checkout, name: Checkout.com}
 
+  # Public daily dataset covering additional ATSes, including Workday,
+  # SmartRecruiters, iCIMS, and other enterprise career systems.
+  - {ats: openjobdata, slug: latest, name: OpenJobData}
+
   # New ATS examples
   # - {ats: recruitee, slug: <slug>, name: <Company>}
   # - {ats: workable, slug: <slug>, name: <Company>}

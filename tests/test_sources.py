@@ -17,7 +17,8 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from findmeajob import samples
-from findmeajob.sources import parse_ashby, parse_greenhouse, parse_lever, strip_html
+from findmeajob.sources import (parse_ashby, parse_greenhouse, parse_lever,
+                                 parse_openjobdata, strip_html)
 from findmeajob.samples import fetch_all_mock
 from findmeajob.filters import prefilter
 
@@ -27,6 +28,27 @@ FILTERS = CONFIG["filters"]
 
 
 # ------------------------------------------------------------- strip_html ---
+
+def test_openjobdata_maps_active_remote_job():
+    jobs = parse_openjobdata([{
+        "id": "acme/123",
+        "job_id": "123",
+        "title": "Backend Engineer",
+        "country": "India",
+        "workplace_type": "remote",
+        "is_remote": True,
+        "apply_url": "https://jobs.example.test/123",
+        "posted_at": "2026-09-18T00:00:00Z",
+        "status": "active",
+    }], company="Acme")
+    assert len(jobs) == 1
+    assert jobs[0].ats == "openjobdata"
+    assert jobs[0].location == "India (remote)"
+    assert jobs[0].url == "https://jobs.example.test/123"
+
+
+def test_openjobdata_skips_closed_jobs():
+    assert parse_openjobdata([{"id": "closed", "status": "closed"}]) == []
 
 def test_strip_html_unescapes_twice():
     """Greenhouse ships HTML-entity-escaped HTML: unescape, strip, unescape."""
