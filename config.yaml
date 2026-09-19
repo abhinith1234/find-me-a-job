@@ -45,11 +45,9 @@ filters:
     - '\b(frontend|front-end|ios|android|mobile|game|designer)\b' # wrong discipline
     - '\b(data scientist|machine learning scientist|research scientist)\b'
 
-  # Substrings matched against "<location> <title>", case-insensitive.
-  # Leave empty to accept every location.
+  # Accept all jobs whose location mentions India, including remote roles and
+  # office-based roles in any Indian city. This is intentionally broad.
   locations:
-    - bangalore
-    - bengaluru
     - india
 
   # If true, anything reading as remote passes the location gate.
@@ -63,7 +61,7 @@ filters:
 screen_batch_size: 8      # jobs per screening call. Higher = cheaper, sloppier.
 screen_jd_chars: 1400     # JD truncation for screening
 draft_jd_chars: 6000      # JD truncation for drafting
-score_threshold: 7.0      # below this, no draft and no digest slot
+score_threshold: 5.0      # below this, no draft and no digest slot
 max_per_digest: 5         # hard cap on expensive draft calls per run
 
 # --- paths ------------------------------------------------------------------

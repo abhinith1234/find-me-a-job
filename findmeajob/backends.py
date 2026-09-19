@@ -214,6 +214,15 @@ class GroqProvider(OpenAICompatProvider):
     name = "groq"
 
 
+class HuggingFaceProvider(OpenAICompatProvider):
+    """Open models through Hugging Face's OpenAI-compatible router."""
+
+    name = "huggingface"
+    required_env = "HF_TOKEN"
+    key_env = "HF_TOKEN"
+    default_base = "https://router.huggingface.co/v1"
+
+
 class OllamaProvider(Provider):
     """Fully local. No key, no cost, no rate limit - just a slower model."""
 
@@ -251,16 +260,21 @@ PROVIDERS = {
     "groq": GroqProvider,
     "openai-compatible": OpenAICompatProvider,
     "ollama": OllamaProvider,
+    "huggingface": HuggingFaceProvider,
 }
 
 # What each provider gets if you do not name a model, so `--scorer llm` works
 # after setting nothing but a key.
 DEFAULT_MODELS = {
     "anthropic": {"screen": "claude-haiku-4-5-20251001", "draft": "claude-sonnet-5"},
-    "gemini": {"screen": "gemini-2.0-flash", "draft": "gemini-2.0-flash"},
+    "gemini": {"screen": "gemini-3.6-flash", "draft": "gemini-3.6-flash"},
     "groq": {"screen": "llama-3.3-70b-versatile", "draft": "llama-3.3-70b-versatile"},
     "openai-compatible": {"screen": "gpt-4o-mini", "draft": "gpt-4o"},
     "ollama": {"screen": "llama3.1", "draft": "llama3.1"},
+    "huggingface": {
+        "screen": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+        "draft": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+    },
 }
 
 

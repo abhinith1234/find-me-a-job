@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -71,6 +72,7 @@ def _card(j: Job) -> str:
     <a href="{html.escape(j.url)}" style="display:inline-block;background:{ACCENT};
        color:#0f1115;font-weight:700;font-size:14px;text-decoration:none;
        padding:10px 18px;border-radius:8px;">Open &amp; apply →</a>
+    {f'<a href="{html.escape(os.getenv("CUSTOMIZE_BASE_URL", "").rstrip("/") + "/customize/" + os.getenv("CUSTOMIZE_RUN_ID", "") + "/" + j.job_id)}" style="display:inline-block;background:#2b3345;color:{TEXT};font-weight:700;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:8px;margin-left:8px;">Customize resume</a>' if os.getenv("CUSTOMIZE_BASE_URL") and os.getenv("CUSTOMIZE_RUN_ID") else ''}
     <span style="color:{MUTED};font-size:11px;margin-left:10px;">{html.escape(j.job_id)}</span>
   </div>
 </div>"""

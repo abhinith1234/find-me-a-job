@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customize resume</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 36px 20px; background: #0f1115; color: #e6e8ec; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .wrap { max-width: 820px; margin: 0 auto; }
+    h1 { font-size: 25px; margin: 0 0 5px; }
+    h2 { font-size: 16px; margin: 26px 0 8px; }
+    .muted, .hint { color: #8b93a3; font-size: 13px; line-height: 1.55; }
+    .card { background: #171a21; border: 1px solid #262b36; border-radius: 12px; padding: 20px; margin-top: 18px; }
+    .jd { max-height: 230px; overflow: auto; white-space: pre-wrap; color: #c8ccd4; font-size: 13px; line-height: 1.55; background: #0d1017; padding: 14px; border-radius: 8px; }
+    select, input[type=password] { width: 100%; padding: 10px; margin-top: 6px; background: #0d1017; color: #e6e8ec; border: 1px solid #262b36; border-radius: 7px; }
+    label { display: block; color: #c8ccd4; font-size: 13px; font-weight: 700; margin-top: 14px; }
+    button { margin-top: 18px; border: 0; border-radius: 7px; padding: 11px 16px; background: #7c9cff; color: #0f1115; font-weight: 800; cursor: pointer; }
+    .err { background: #2a1416; border: 1px solid #6e2b30; color: #ffb3b3; padding: 12px; border-radius: 8px; margin-top: 16px; white-space: pre-wrap; }
+    pre { white-space: pre-wrap; background: #0d1017; border: 1px solid #262b36; border-radius: 8px; padding: 14px; color: #e6e8ec; line-height: 1.55; font-size: 13px; }
+    li { margin: 7px 0; line-height: 1.5; }
+    a { color: #9db4ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Customize resume for {{ data.title }}</h1>
+    <div class="muted">{{ data.company }} · {{ data.location or 'Location not stated' }}</div>
+
+    <section class="card">
+      <h2>Job description</h2>
+      <div class="jd">{{ data.description }}</div>
+      <p class="hint">The first pass uses only this job description to define the target. The second pass compares that target with your actual uploaded resume.</p>
+    </section>
+
+    <form class="card" method="post">
+      <h2>Run the comparison</h2>
+      <label for="provider">AI provider</label>
+      <select id="provider" name="provider">
+        <option value="ollama">Ollama local model</option>
+        <option value="huggingface">Hugging Face hosted model</option>
+        <option value="gemini">Google Gemini</option>
+      </select>
+      <label for="model">Model</label>
+      <select id="model" name="model">
+        <option value="llama3.2:1b">Llama 3.2 1B</option>
+        <option value="gemma2:2b">Gemma 2 2B</option>
+        <option value="qwen2.5:1.5b">Qwen 2.5 1.5B</option>
+      </select>
+      <label for="token">Token or API key, if required</label>
+      <input id="token" name="token" type="password" autocomplete="off">
+      <div class="hint">Ollama does not need a token. Hosted provider credentials are used only for this request.</div>
+      <button type="submit">Compare and customize resume</button>
+    </form>
+
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    {% if result %}
+    <section class="card">
+      <h2>Ideal target from the job description</h2>
+      <p>{{ result.ideal.target_summary }}</p>
+      <h3>Target skills</h3>
+      <ul>{% for item in result.ideal.target_skills %}<li>{{ item }}</li>{% endfor %}</ul>
+      <h3>Target resume outline</h3>
+      <pre>{{ result.ideal.target_resume }}</pre>
+
+      <h2>How to position your actual resume</h2>
+      <p>{{ result.comparison.positioning_summary }}</p>
+      <h3>Keep and emphasize</h3>
+      <ul>{% for item in result.comparison.keep %}<li>{{ item }}</li>{% endfor %}</ul>
+      <h3>Rewrite suggestions</h3>
+      <ul>{% for item in result.comparison.rewrite_suggestions %}<li>{{ item }}</li>{% endfor %}</ul>
+      <h3>Honest gaps</h3>
+      <ul>{% for item in result.comparison.gaps %}<li>{{ item }}</li>{% endfor %}</ul>
+      <h2>Tailored resume draft</h2>
+      <pre>{{ result.comparison.tailored_resume }}</pre>
+      <h2>Truth check before applying</h2>
+      <ul>{% for item in result.comparison.truth_check %}<li>{{ item }}</li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+    <p class="muted"><a href="{{ url_for('index') }}">Start another search</a></p>
+  </div>
+</body>
+</html>

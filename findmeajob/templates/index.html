@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Find Me A Job</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 40px 20px; background: #0f1115; color: #e6e8ec;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .wrap { max-width: 560px; margin: 0 auto; }
+    h1 { font-size: 26px; font-weight: 800; margin: 0 0 6px; }
+    .sub { color: #8b93a3; font-size: 14px; margin: 0 0 28px; line-height: 1.6; }
+    .card {
+      background: #171a21; border: 1px solid #262b36; border-radius: 14px; padding: 22px;
+    }
+    label { display: block; font-size: 13px; font-weight: 700; margin: 16px 0 6px; }
+    label:first-of-type { margin-top: 0; }
+    input[type=email], input[type=number], input[type=file] {
+      width: 100%; padding: 11px 12px; background: #0d1017; color: #e6e8ec;
+      border: 1px solid #262b36; border-radius: 8px; font-size: 14px;
+    }
+    input[type=file] { padding: 9px 10px; }
+    select, input[type=password] {
+      width: 100%; padding: 11px 12px; background: #0d1017; color: #e6e8ec;
+      border: 1px solid #262b36; border-radius: 8px; font-size: 14px;
+    }
+    .row { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+    .row input { width: auto; }
+    .label-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .label-line label { margin-bottom: 6px; }
+    .label-line a { color: #9db4ff; font-size: 12px; font-weight: 500; }
+    .row label { margin: 0; font-weight: 500; color: #c8ccd4; }
+    .hint { color: #8b93a3; font-size: 12px; margin-top: 5px; line-height: 1.5; }
+    button {
+      margin-top: 24px; width: 100%; padding: 12px 18px; border: 0; cursor: pointer;
+      background: #7c9cff; color: #0f1115; font-weight: 800; font-size: 15px;
+      border-radius: 8px;
+    }
+    button:hover { background: #93acff; }
+    .err {
+      background: #2a1416; border: 1px solid #6e2b30; color: #ffb3b3;
+      padding: 12px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 18px;
+    }
+    .foot { color: #8b93a3; font-size: 12px; margin-top: 18px; line-height: 1.6; }
+    code { background: #0d1017; padding: 1px 6px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Find Me A Job</h1>
+    <p class="sub">
+      Upload your resume and drop in an email. It reads public job boards, keeps
+      the handful that actually fit you, drafts an application kit for each, and
+      sends you a digest.
+    </p>
+
+    <form action="{{ url_for('install_ollama') }}" method="post" style="margin-bottom: 18px;">
+      <button type="submit" style="margin-top: 0; background: #1f8fff;">
+        Install Ollama for {{ ollama_os_label or 'this machine' }}
+      </button>
+    </form>
+
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+    <form class="card" action="{{ url_for('run') }}" method="post"
+          enctype="multipart/form-data">
+      <label for="resume">Resume</label>
+      <input id="resume" name="resume" type="file" accept=".pdf,.docx,.txt,.md" required>
+      <div class="hint">PDF, DOCX, TXT or MD, up to 5&nbsp;MB.</div>
+
+      <label for="delivery">Results</label>
+      <select id="delivery" name="delivery">
+        <option value="browser">Show me the job list in the browser</option>
+        <option value="email">Email me the digest</option>
+      </select>
+      <div class="hint">Browser mode opens the digest on the results page and sends no email.</div>
+
+      <div id="email-field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" placeholder="you@example.com">
+        <div class="hint">Used only when Email me the digest is selected.</div>
+      </div>
+
+      <label for="limit">Limit jobs (optional)</label>
+      <input id="limit" name="limit" type="number" min="1" placeholder="e.g. 10">
+      <div class="hint">Caps how many jobs reach the AI — a cost guard while tuning.</div>
+
+      <label for="provider">AI provider</label>
+      <select id="provider" name="provider">
+        <option value="ollama" {% if provider|default('ollama') == 'ollama' %}selected{% endif %}>
+          Ollama local model (no token)
+        </option>
+        <option value="huggingface" {% if provider|default('') == 'huggingface' %}selected{% endif %}>
+          Hugging Face hosted model (token)
+        </option>
+        <option value="gemini" {% if provider|default('') == 'gemini' %}selected{% endif %}>
+          Google Gemini (API key)
+        </option>
+      </select>
+      <div id="local-model-help" class="hint">The selected model downloads once and runs on this Mac. PDF text is extracted locally.</div>
+      <div id="local-model-field">
+        <label for="model">Local model</label>
+        <select id="model" name="model">
+          <option value="llama3.2:1b">Llama 3.2 1B (smallest)</option>
+          <option value="gemma2:2b">Gemma 2 2B</option>
+          <option value="qwen2.5:1.5b">Qwen 2.5 1.5B</option>
+        </select>
+      </div>
+      <div id="token-field" hidden>
+        <div class="label-line">
+          <label id="token-label" for="token">Provider token</label>
+          <a id="token-link" href="https://huggingface.co/settings/tokens"
+             target="_blank" rel="noopener noreferrer">Get a token</a>
+        </div>
+        <input id="token" name="token" type="password" autocomplete="off">
+        <div id="token-help" class="hint">Used only for this run and not written to the repository.</div>
+      </div>
+
+      <button type="submit">Find me jobs</button>
+    </form>
+
+    <script>
+      const provider = document.getElementById('provider');
+      const delivery = document.getElementById('delivery');
+      const emailField = document.getElementById('email-field');
+      const email = document.getElementById('email');
+      const localField = document.getElementById('local-model-field');
+      const localHelp = document.getElementById('local-model-help');
+      const tokenField = document.getElementById('token-field');
+      const tokenLabel = document.getElementById('token-label');
+      const tokenLink = document.getElementById('token-link');
+      const token = document.getElementById('token');
+      function updateProviderFields() {
+        const local = provider.value === 'ollama';
+        localField.hidden = !local;
+        localHelp.hidden = !local;
+        tokenField.hidden = local;
+        token.required = !local;
+        if (provider.value === 'huggingface') {
+          tokenLabel.textContent = 'Hugging Face token';
+          token.placeholder = 'hf_...';
+          tokenLink.href = 'https://huggingface.co/settings/tokens';
+          tokenLink.textContent = 'Create a Hugging Face token';
+        } else {
+          tokenLabel.textContent = 'Gemini API key';
+          token.placeholder = 'AIza...';
+          tokenLink.href = 'https://aistudio.google.com/apikey';
+          tokenLink.textContent = 'Get a Gemini API key';
+        }
+      }
+      provider.addEventListener('change', updateProviderFields);
+      function updateDeliveryFields() {
+        const emailMode = delivery.value === 'email';
+        emailField.hidden = !emailMode;
+        email.required = emailMode;
+      }
+      delivery.addEventListener('change', updateDeliveryFields);
+      updateProviderFields();
+      updateDeliveryFields();
+    </script>
+
+    <p class="foot">
+      Drafts are starting points, not send-ready. This never submits an
+      application for you — you read the digest and press submit yourself.
+    </p>
+  </div>
+</body>
+</html>

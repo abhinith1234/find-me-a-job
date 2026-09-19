@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+from io import BytesIO
 from typing import Any
 
 from .sources import Job
@@ -29,6 +30,49 @@ DRAFT_KEYS = ("fit_summary", "tailored_bullets", "gaps", "cover_note", "question
 SCREEN_MAX_TOKENS = 4000
 DRAFT_MAX_TOKENS = 8000
 PROFILE_MAX_TOKENS = 4000
+CUSTOMIZE_MAX_TOKENS = 10000
+
+
+def extract_pdf_text(pdf: bytes) -> str:
+    """Extract text locally for providers that cannot accept PDF documents."""
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise LLMError("PDF support needs pypdf. Run: pip install pypdf") from exc
+    try:
+        text = "\n\n".join(
+            page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages
+        ).strip()
+    except Exception as exc:  # malformed or encrypted PDF
+        raise LLMError(f"could not read PDF text: {exc}") from exc
+    if not text:
+        raise LLMError(
+            "this PDF has no selectable text. Use a text-based PDF or choose "
+            "Gemini/Anthropic for scanned PDFs."
+        )
+    return text
+
+
+def extract_docx_text(docx: bytes) -> str:
+    """Extract paragraphs and table cells locally from a DOCX resume."""
+    try:
+        from docx import Document
+    except ImportError as exc:
+        raise LLMError(
+            "DOCX support needs python-docx. Run: pip install python-docx"
+        ) from exc
+    try:
+        document = Document(BytesIO(docx))
+        parts = [p.text.strip() for p in document.paragraphs if p.text.strip()]
+        for table in document.tables:
+            for row in table.rows:
+                parts.append(" | ".join(cell.text.strip() for cell in row.cells))
+        text = "\n".join(parts).strip()
+    except Exception as exc:
+        raise LLMError(f"could not read DOCX text: {exc}") from exc
+    if not text:
+        raise LLMError("this DOCX file contains no readable text")
+    return text
 
 
 def parse_json(raw: str) -> Any:
@@ -98,7 +142,11 @@ def build_profile(resume_bytes: bytes | None = None, resume_text: str | None = N
     if provider is None or model is None:
         provider, model = resolve("draft")
 
-    if is_pdf and resume_bytes:
+    if is_pdf and resume_bytes and provider.name not in {"anthropic", "gemini"}:
+        raw = provider.complete(
+            model, "", f"{PROFILE_PROMPT}\n\n--- RESUME ---\n"
+            f"{extract_pdf_text(resume_bytes)}", PROFILE_MAX_TOKENS, json_mode=True)
+    elif is_pdf and resume_bytes:
         try:
             raw = provider.complete_document(
                 model, PROFILE_PROMPT, resume_bytes, PROFILE_MAX_TOKENS)
@@ -253,6 +301,82 @@ def draft(jobs: list[Job], profile: dict, jd_chars: int = 6000,
             j.draft = {k: ("" if k in ("fit_summary", "cover_note") else []) for k in DRAFT_KEYS}
 
     return jobs
+
+
+# ------------------------------------------------------ resume customizer ---
+
+CUSTOMIZE_IDEAL_PROMPT = """Create an ideal resume outline for this job description.
+
+This is a TARGET resume, not a claim about any candidate. Infer the keywords,
+responsibilities, evidence and structure that would make a qualified applicant
+clear to a recruiter. Do not invent a person's employers, dates or metrics.
+Return ONLY JSON:
+{
+  "target_summary": str,
+  "target_skills": [str],
+  "target_experience_themes": [str],
+  "target_resume": str
+}
+
+JOB DESCRIPTION:
+"""
+
+CUSTOMIZE_COMPARE_PROMPT = """Compare a candidate's actual resume with an ideal target for a job.
+
+Return ONLY JSON:
+{
+  "positioning_summary": str,
+  "keep": [str],
+  "rewrite_suggestions": [str],
+  "gaps": [str],
+  "tailored_resume": str,
+  "truth_check": [str]
+}
+
+Rules:
+- Never invent experience, employers, dates, skills, education or metrics.
+- Only rewrite or reorder evidence present in the actual resume.
+- Put unsupported target requirements in gaps, not in the tailored resume.
+- Keep the tailored resume practical and ready for the candidate to edit.
+
+IDEAL TARGET:
+{ideal}
+
+ACTUAL RESUME:
+{actual}
+"""
+
+
+def customize_resume(job: Job, resume_text: str | None = None,
+                     resume_bytes: bytes | None = None, is_pdf: bool = False,
+                     provider: Provider | None = None,
+                     model: str | None = None) -> dict:
+    """Build a JD-only target, then compare it with the candidate's resume."""
+    if provider is None or model is None:
+        provider, model = resolve("draft")
+    ideal_raw = provider.complete(
+        model, "", CUSTOMIZE_IDEAL_PROMPT + job.description[:12000],
+        CUSTOMIZE_MAX_TOKENS, json_mode=True)
+    ideal = parse_json(ideal_raw)
+    if not isinstance(ideal, dict):
+        raise ValueError("ideal resume response was not a JSON object")
+    ideal_blob = json.dumps(ideal, ensure_ascii=False)
+    compare_prompt = CUSTOMIZE_COMPARE_PROMPT.replace("{ideal}", ideal_blob).replace(
+        "{actual}", resume_text or "")
+    if is_pdf and resume_bytes and provider.name not in {"anthropic", "gemini"}:
+        compare_raw = provider.complete(
+            model, "", compare_prompt.replace("{actual}", extract_pdf_text(resume_bytes)),
+            CUSTOMIZE_MAX_TOKENS, json_mode=True)
+    elif is_pdf and resume_bytes:
+        compare_raw = provider.complete_document(
+            model, compare_prompt, resume_bytes, CUSTOMIZE_MAX_TOKENS)
+    else:
+        compare_raw = provider.complete(
+            model, "", compare_prompt, CUSTOMIZE_MAX_TOKENS, json_mode=True)
+    comparison = parse_json(compare_raw)
+    if not isinstance(comparison, dict):
+        raise ValueError("resume comparison response was not a JSON object")
+    return {"ideal": ideal, "comparison": comparison}
 
 
 # ------------------------------------------------- offline scorer (no API) ---

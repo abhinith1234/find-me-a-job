@@ -65,13 +65,16 @@ def cmd_profile(args) -> int:
         print(f"resume not found: {src}")
         return 1
     is_pdf = src.suffix.lower() == ".pdf"
+    is_docx = src.suffix.lower() == ".docx"
 
     try:
         provider, model = resolve("draft")
         print(f"reading {src.name} via {provider.name}/{model} ...")
         profile = ai.build_profile(
             resume_bytes=src.read_bytes() if is_pdf else None,
-            resume_text=None if is_pdf else src.read_text(encoding="utf-8", errors="replace"),
+            resume_text=(ai.extract_docx_text(src.read_bytes()) if is_docx
+                         else None if is_pdf else src.read_text(
+                             encoding="utf-8", errors="replace")),
             is_pdf=is_pdf, provider=provider, model=model,
         )
     except (LLMError, ValueError) as e:
@@ -183,6 +186,13 @@ def cmd_run(args) -> int:
     subject, doc = report_mod.build(shortlist, scanned, candidates, store.stats())
     path = report_mod.write(doc, cfg.get("digest_file", "out/digest.html"))
     print(f"  wrote {path}")
+    if getattr(args, "web_job_id", None):
+        data_path = Path("out") / "customize" / f"{args.web_job_id}.json"
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {j.job_id: j.to_dict() for j in shortlist}
+        for item in data.values():
+            item["resume_path"] = args.resume_path
+        data_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
     sent = False
     if args.send:
@@ -220,6 +230,16 @@ def cmd_stats(args) -> int:
     return 0
 
 
+def cmd_serve(args) -> int:
+    try:
+        from .web import run_server
+    except ImportError:
+        print("Flask is not installed. Run: pip install flask")
+        return 1
+    run_server(host=args.host, port=args.port)
+    return 0
+
+
 def main(argv=None) -> int:
     _load_env()
     p = argparse.ArgumentParser(
@@ -249,6 +269,11 @@ def main(argv=None) -> int:
 
     ss = sub.add_parser("stats", help="tracker summary + CSV export")
     ss.set_defaults(func=cmd_stats)
+
+    sv = sub.add_parser("serve", help="launch the web UI (upload resume, get a digest)")
+    sv.add_argument("--host", default="127.0.0.1")
+    sv.add_argument("--port", type=int, default=5000)
+    sv.set_defaults(func=cmd_serve)
 
     args = p.parse_args(argv)
     return args.func(args)

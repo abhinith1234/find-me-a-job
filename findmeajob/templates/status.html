@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% if job.state in ['queued', 'running'] %}
+  <meta http-equiv="refresh" content="3">
+  {% endif %}
+  <title>Find Me A Job — status</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; padding: 40px 20px; background: #0f1115; color: #e6e8ec;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 800; margin: 0 0 18px; }
+    .card {
+      background: #171a21; border: 1px solid #262b36; border-radius: 14px;
+      padding: 22px; margin-bottom: 16px;
+    }
+    .badge {
+      display: inline-block; padding: 4px 12px; border-radius: 999px;
+      font-weight: 700; font-size: 13px;
+    }
+    .running { background: #d29922; color: #0f1115; }
+    .done    { background: #3fb950; color: #0f1115; }
+    .error   { background: #f85149; color: #0f1115; }
+    .msg { color: #c8ccd4; font-size: 14px; line-height: 1.6; margin: 14px 0 0; }
+    .err {
+      background: #2a1416; border: 1px solid #6e2b30; color: #ffb3b3;
+      padding: 12px 14px; border-radius: 8px; font-size: 14px;
+      white-space: pre-wrap; margin-top: 14px;
+    }
+    a.btn {
+      display: inline-block; margin-top: 16px; background: #7c9cff; color: #0f1115;
+      font-weight: 800; font-size: 14px; text-decoration: none; padding: 10px 18px;
+      border-radius: 8px;
+    }
+    a.link { color: #7c9cff; font-size: 14px; }
+    pre {
+      background: #0d1017; border: 1px solid #262b36; border-radius: 8px;
+      padding: 14px; overflow-x: auto; color: #b9c0cc; font-size: 12.5px;
+      line-height: 1.55;
+    }
+    .muted { color: #8b93a3; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Your job hunt</h1>
+
+    <div class="card">
+      {% if job.state == 'queued' %}
+        <span class="badge running">Queued…</span>
+        <p class="msg">Waiting for a slot. This page refreshes itself.</p>
+      {% elif job.state == 'running' %}
+        <span class="badge running">Working…</span>
+        <p class="msg">
+          Reading your resume, scanning boards and scoring matches. This can take
+          a minute — the page
+          refreshes itself.
+        </p>
+      {% elif job.state == 'done' %}
+        <span class="badge done">Done</span>
+        <p class="msg">
+          {% if job.emailed %}
+            Digest emailed to <strong>{{ job.email }}</strong>.
+          {% else %}
+            Digest built for browser viewing. {% if job.digest %}Open it below.{% endif %}
+          {% endif %}
+        </p>
+        {% if job.digest %}
+          <a class="btn" href="{{ url_for('digest', job_id=job_id) }}" target="_blank">
+            View digest →
+          </a>
+        {% endif %}
+      {% elif job.state == 'error' %}
+        <span class="badge error">Failed</span>
+        <div class="err">{{ job.error }}</div>
+      {% endif %}
+    </div>
+
+    {% if job.log %}
+    <div class="card">
+      <div class="muted">Run log</div>
+      <pre>{{ job.log }}</pre>
+    </div>
+    {% endif %}
+
+    <a class="link" href="{{ url_for('index') }}">← Start another</a>
+  </div>
+</body>
+</html>

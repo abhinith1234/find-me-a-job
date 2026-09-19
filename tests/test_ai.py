@@ -273,7 +273,7 @@ def test_keyword_screen_stays_in_range_with_an_empty_profile():
 
 ENV_KEYS = ["LLM_PROVIDER", "SCREEN_PROVIDER", "DRAFT_PROVIDER",
             "SCREEN_MODEL", "DRAFT_MODEL", "ANTHROPIC_API_KEY",
-            "GEMINI_API_KEY", "GROQ_API_KEY"]
+            "GEMINI_API_KEY", "GROQ_API_KEY", "HF_TOKEN"]
 
 
 @pytest.fixture
@@ -326,6 +326,22 @@ def test_ollama_needs_no_credentials(clean_env):
     clean_env.setenv("LLM_PROVIDER", "ollama")
     provider, model = backends.resolve("screen")
     assert provider.name == "ollama" and model == "llama3.1"
+
+
+def test_huggingface_uses_lightweight_default_model(clean_env):
+    clean_env.setenv("LLM_PROVIDER", "huggingface")
+    clean_env.setenv("HF_TOKEN", "hf_test")
+    provider, model = backends.resolve("screen")
+    assert provider.name == "huggingface"
+    assert model == "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+
+
+def test_gemini_uses_current_default_model(clean_env):
+    clean_env.setenv("LLM_PROVIDER", "gemini")
+    clean_env.setenv("GEMINI_API_KEY", "gemini_test")
+    provider, model = backends.resolve("screen")
+    assert provider.name == "gemini"
+    assert model == "gemini-3.6-flash"
 
 
 def test_unknown_provider_lists_the_valid_ones(clean_env):

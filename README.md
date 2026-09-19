@@ -16,15 +16,47 @@ read the digest, edit the cover note, and press submit yourself.
 
 ---
 
-## Run it in 30 seconds, no API key
+## Quick setup
+
+The setup scripts create a project-local virtual environment, install all
+dependencies, and keep your global Python installation untouched.
+
+### macOS/Linux
+
+```bash
+./setup.sh
+./run.sh
+```
+
+Open http://127.0.0.1:5000. Choose **Ollama local model** in the UI for a
+token-free setup, or choose Gemini/Hugging Face and enter that provider's key.
+
+### Windows PowerShell
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\setup.ps1
+.\run.ps1
+```
+
+Open http://127.0.0.1:5000. The scripts use `.venv`, so activation is not
+required. Install Python 3.11 or newer first if `python`/`py` is unavailable.
+
+For local AI, install Ollama from https://ollama.com/download. The first local
+model selected in the UI downloads automatically. Gemini and Hugging Face use
+their hosted APIs and require their respective keys.
+
+To stop the UI, press `Ctrl+C` in the terminal.
+
+## Run it manually, no API key
 
 ```bash
 cd find-me-a-job
-python -m venv .venv && .venv/Scripts/activate      # Windows
-# python -m venv .venv && source .venv/bin/activate # macOS/Linux
-pip install -r requirements.txt
+./setup.sh                                      # macOS/Linux
+# .\setup.ps1                                  # Windows PowerShell
 
-python -m findmeajob run --mock --scorer keyword
+.venv/bin/python -m findmeajob run --mock --scorer keyword       # macOS/Linux
+# .\.venv\Scripts\python.exe -m findmeajob run --mock --scorer keyword  # Windows
 ```
 
 `--mock` runs bundled fixtures through the **real parsers** — no network.
@@ -102,9 +134,10 @@ cp .env.example .env      # add ANTHROPIC_API_KEY
 python -m findmeajob profile --resume resume.pdf
 ```
 
-PDFs go over as a base64 document block (Anthropic and Gemini both read them
-natively — no OCR, no text extraction library). `.txt` and `.md` also work and
-are the fallback for providers that can't take documents.
+PDFs are sent natively to Anthropic and Gemini. Ollama, Hugging Face, Groq and
+other text-only providers extract selectable PDF text locally with `pypdf`.
+Scanned/image-only PDFs need Gemini or Anthropic, or should be exported as
+`.txt`/`.md`.
 
 This writes `profile.json`. It's gitignored — read it, fix anything the model
 got wrong, and keep it out of version control.
@@ -120,13 +153,54 @@ python -m findmeajob run --no-draft         # screen only, skip the expensive pa
 
 ---
 
+## Web UI
+
+Prefer a browser to a terminal? There's a small upload-and-go front-end:
+
+```bash
+pip install flask
+python -m findmeajob serve                  # http://127.0.0.1:5000
+```
+
+Open the page, upload a resume (PDF/DOCX/TXT/MD), enter an email, and hit **Find me
+jobs**. It builds a profile from the resume, runs the same pipeline, and emails
+the digest to that address (you can also view it in the browser). Tick **Demo
+mode** to run offline against sample jobs with no API key.
+
+The UI runs one pipeline at a time — `profile.json`, `seen.json` and the digest
+are shared files. It's built for a single user on your own machine; don't expose
+it to the public internet as-is (no auth, and it runs with your API keys).
+
+### Test email delivery
+
+Add SMTP settings to `.env`. For Gmail, use an App Password, not your normal
+account password:
+
+```env
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-gmail-app-password
+MAIL_TO=you@gmail.com
+```
+
+Then run the offline pipeline with email enabled:
+
+```bash
+.venv/bin/python -m findmeajob run --mock --scorer keyword --send
+```
+
+The UI's **Email me the digest** checkbox uses the same SMTP settings. Demo
+mode intentionally does not send email; use the command above for a no-AI-key
+delivery test.
+
+---
+
 ## Picking providers
 
 Screening reads hundreds of jobs and wants the cheapest decent model. Drafting
 runs ~5 times and wants the best one. So they're configured separately:
 
 ```bash
-LLM_PROVIDER=anthropic          # sets both stages
+LLM_PROVIDER=huggingface       # sets both stages
 SCREEN_PROVIDER=groq            # ...override per stage
 DRAFT_PROVIDER=anthropic
 SCREEN_MODEL=claude-haiku-4-5-20251001
@@ -139,7 +213,8 @@ DRAFT_MODEL=claude-sonnet-5
 | Google Gemini | `gemini` | `GEMINI_API_KEY` | yes | generous free tier |
 | Groq | `groq` | `GROQ_API_KEY` | no | very fast, free tier |
 | OpenAI-compatible | `openai-compatible` | `GROQ_API_KEY` + `LLM_BASE_URL` | no | Together, OpenRouter, vLLM |
-| Ollama | `ollama` | none | no | fully local, `OLLAMA_HOST` |
+| Hugging Face | `huggingface` | `HF_TOKEN` | no | hosted open models via the HF router |
+| Ollama | `ollama` | none | text-based PDFs | fully local, `OLLAMA_HOST` |
 
 Everything except Anthropic goes over plain `requests`, so you can delete the
 `anthropic` line from `requirements.txt` and still run the whole thing.
@@ -203,7 +278,9 @@ findmeajob/
   notify.py      SMTP
   tracker.py     seen.json dedupe + tracker + CSV export
   samples.py     fixtures in each ATS's native JSON shape
-  app.py         argparse: profile / run / applied / stats
+  app.py         argparse: profile / run / applied / stats / serve
+  web.py         Flask UI: upload resume + email -> pipeline -> digest
+  templates/     index + status pages for the web UI
 config.yaml      filters, thresholds, paths
 companies.yaml   boards to poll
 tests/           55 tests, no network, no key
