@@ -198,6 +198,82 @@ MAIL_TO=your-recipient@example.com
 
 The UI's email mode uses these settings. Browser mode does not send mail.
 
+### Test email delivery
+
+After filling in `.env`, send a small test message without running the job
+pipeline:
+
+```powershell
+.\.venv\Scripts\python.exe -m findmeajob test-email --to you@example.com
+```
+
+On macOS/Linux:
+
+```bash
+.venv/bin/python -m findmeajob test-email --to you@example.com
+```
+
+Brevo must have the `SMTP_FROM` address verified. The command reports when the
+SMTP server accepts the message; check Inbox and Spam/Junk for final delivery.
+
+### Daily email trigger
+
+The scheduled job runs the equivalent of:
+
+```text
+python -m findmeajob run --send
+```
+
+It uses the current `.env`, `companies.yaml`, `config.yaml`, and `profile.json`.
+Scheduled runs additionally use the local, gitignored `old_ones.json` file to
+avoid emailing the same job again. Normal CLI and UI runs do not use this file.
+Make sure `profile.json` exists before installing the schedule.
+
+#### Windows Task Scheduler
+
+Run PowerShell from the project root. The default time is 09:00 local time:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\schedule_daily.ps1 -Action Install
+```
+
+Test immediately, inspect the log, or remove the task:
+
+```powershell
+.\schedule_daily.ps1 -Action RunNow
+Get-ChildItem .\out\scheduled
+.\schedule_daily.ps1 -Action Remove
+```
+
+Install at another time using 24-hour `HH:MM` format:
+
+```powershell
+.\schedule_daily.ps1 -Action Install -Time 18:30
+```
+
+#### macOS/Linux cron
+
+Run from the project root:
+
+```bash
+chmod +x schedule_daily.sh run_daily.sh
+./schedule_daily.sh install 09:00
+```
+
+Test immediately, inspect the schedule/log, or remove it:
+
+```bash
+./schedule_daily.sh run-now
+./schedule_daily.sh list
+ls -la out/scheduled
+./schedule_daily.sh remove
+```
+
+The cron entry runs in your user account and uses the project virtual
+environment. The computer must be awake for the scheduled run; macOS users who
+need wake-from-sleep behavior should use a launchd agent instead of cron.
+
 ## Layout
 
 ```text
@@ -213,6 +289,8 @@ findmeajob/
   templates/     UI pages
 config.yaml      filters, thresholds, and paths
 companies.yaml   public boards to poll
+run_daily.ps1/.sh daily email runner
+schedule_daily.ps1/.sh local scheduler setup
 tests/           offline regression tests
 ```
 

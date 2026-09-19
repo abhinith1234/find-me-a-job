@@ -19,6 +19,7 @@ uploads/
 # user's first run finds nothing. GitHub Actions persists it via actions/cache
 # instead of committing it.
 seen.json
+old_ones.json
 
 # python
 __pycache__/

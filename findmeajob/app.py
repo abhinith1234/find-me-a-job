@@ -21,6 +21,7 @@ from .sources import fetch_all, hydrate
 from .samples import fetch_all_mock
 from .filters import prefilter
 from .backends import LLMError, resolve
+from .tracker import Store
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -96,6 +97,7 @@ def cmd_run(args) -> int:
     if profile is None:
         return 1
     filters = cfg.get("filters", {}) or {}
+    old_store = Store(args.old_ones) if getattr(args, "old_ones", None) else None
     profile_locations = profile.get("preferred_locations") or profile.get("locations") or []
     profile_titles = [str(title).strip() for title in profile.get("target_titles", [])
                       if str(title).strip()]
@@ -133,6 +135,9 @@ def cmd_run(args) -> int:
     print("\n[2/5] filtering")
     jobs = prefilter(jobs, filters)
     passed_filters = len(jobs)
+    if old_store:
+        jobs = old_store.unseen(jobs)
+        print(f"  scheduler old_ones: {len(jobs)} new email candidates")
     filtered_path = getattr(args, "web_filtered_path", None)
     if filtered_path:
         filtered_file = Path(filtered_path)
@@ -236,6 +241,9 @@ def cmd_run(args) -> int:
     print(f"\nfunnel: {scanned} scanned -> {passed_filters} passed filters "
             f"-> {candidates} candidates -> {len(shortlist)} in digest")
     print(f"subject: {subject}")
+    if old_store and sent:
+        old_store.record(jobs, emailed=True)
+        print(f"old_ones: recorded {len(jobs)} emailed jobs")
     return 0
 
 
@@ -285,6 +293,7 @@ def main(argv=None) -> int:
                          "alias for 'llm', kept for older docs)")
     sr.add_argument("--no-draft", action="store_true", help="skip the expensive stage")
     sr.add_argument("--send", action="store_true", help="actually email the digest")
+    sr.add_argument("--old-ones", help="optional dedupe file for scheduled email runs")
     sr.add_argument("--limit", type=int, help="cap jobs sent to the LLM (cost guard)")
     sr.set_defaults(func=cmd_run)
 
