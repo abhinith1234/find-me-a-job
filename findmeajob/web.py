@@ -444,6 +444,8 @@ def _worker(job_id: str, resume_path: Path, email: str, opts: Namespace) -> None
                 web_job_id=job_id,
                 resume_path=opts.resume_path,
                 web_filtered_path=str(ROOT / "out" / f"{job_id}-filtered-jobs.csv"),
+                workplace_types=opts.workplace_types,
+                location_preferences=opts.location_preferences,
             )
             cmd_run(args)
             print("[run] Pipeline complete", flush=True)
