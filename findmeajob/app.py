@@ -147,6 +147,17 @@ def cmd_run(args) -> int:
         jobs = old_store.unseen(jobs)
         print(f"  scheduler old_ones: {len(jobs)} new email candidates")
     filtered_path = getattr(args, "web_filtered_path", None) or "out/filtered-jobs.csv"
+    print(f"  matching jobs: {len(jobs)}")
+    candidates = len(jobs)
+    if args.limit:
+        jobs = jobs[:args.limit]
+        print(f"  --limit {args.limit} applied")
+
+    # Some boards (SmartRecruiters) omit the JD from their list endpoint; pull
+    # it now, after the cut, so we fetch a handful of details, not the board.
+    if not args.mock and jobs:
+        hydrate(jobs)
+
     filtered_file = Path(filtered_path)
     filtered_file.parent.mkdir(parents=True, exist_ok=True)
     with filtered_file.open("w", newline="", encoding="utf-8-sig") as handle:
@@ -158,16 +169,6 @@ def cmd_run(args) -> int:
              job.description)
             for job in jobs)
     filtered_xlsx_path = report_mod.write_xlsx(jobs, filtered_file.with_suffix(".xlsx"))
-    print(f"  matching jobs: {len(jobs)}")
-    candidates = len(jobs)
-    if args.limit:
-        jobs = jobs[:args.limit]
-        print(f"  --limit {args.limit} applied")
-
-    # Some boards (SmartRecruiters) omit the JD from their list endpoint; pull
-    # it now, after the cut, so we fetch a handful of details, not the board.
-    if not args.mock and jobs:
-        hydrate(jobs)
 
     if not jobs:
         subject, doc = report_mod.build([], scanned, 0, {})
