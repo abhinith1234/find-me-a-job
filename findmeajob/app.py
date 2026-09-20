@@ -111,6 +111,17 @@ def cmd_run(args) -> int:
     profile_locations = profile.get("preferred_locations") or profile.get("locations") or []
     profile_titles = [str(title).strip() for title in profile.get("target_titles", [])
                       if str(title).strip()]
+    if not profile_titles:
+        profile_text = " ".join(str(profile.get(key, "")) for key in (
+            "current_title", "domains", "core_skills", "notable_projects"))
+        if re.search(r"\b(marketing|brand|growth|content|campaign|advertis|sales)\b",
+                     profile_text, re.I):
+            profile_titles = [
+                "marketing", "brand marketing", "growth marketing",
+                "digital marketing", "product marketing", "content marketing",
+                "marketing analyst", "sales", "business development",
+            ]
+            print("  role fallback from profile: marketing/sales")
     if selected_locations is None and (profile_locations or profile_titles):
         filters = dict(filters)
         if profile_locations:
@@ -119,6 +130,7 @@ def cmd_run(args) -> int:
             filters["include_titles"] = [re.escape(title) for title in profile_titles]
             filters["profile_titles"] = profile_titles
             filters["profile_seniority"] = profile.get("seniority", "")
+            filters["exclude_titles"] = []
     if profile_titles:
         print(f"  title roles from resume: {', '.join(profile_titles)}")
     if profile_locations:
