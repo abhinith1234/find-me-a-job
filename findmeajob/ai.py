@@ -33,6 +33,48 @@ PROFILE_MAX_TOKENS = 4000
 PROFILE_RETRY_MAX_TOKENS = 6000
 CUSTOMIZE_MAX_TOKENS = 10000
 
+_ROLE_SECTION = re.compile(
+    r"\b(responsibilit(?:y|ies)|what you(?:'|’)ll do|duties|key tasks|role overview|about the role)\b",
+    re.I,
+)
+_REQUIREMENT_SECTION = re.compile(
+    r"\b(requirements?|qualifications?|what we(?:'|’)re looking for|skills?)\b",
+    re.I,
+)
+
+
+def _screen_excerpt(description: str, limit: int) -> str:
+    """Prioritize responsibilities and requirements over employer marketing copy."""
+    if not description:
+        return ""
+    limit = max(200, int(limit))
+    blocks = [block.strip() for block in re.split(r"\n+", description) if block.strip()]
+    if not blocks:
+        return description[:limit]
+
+    role_blocks = [block for block in blocks if _ROLE_SECTION.search(block)]
+    requirement_blocks = [block for block in blocks if _REQUIREMENT_SECTION.search(block)]
+    priority = []
+    for block in role_blocks + requirement_blocks:
+        if block not in priority:
+            priority.append(block)
+
+    # Keep nearby bullets after section headings; ATS text often puts each list
+    # item on its own line, so this captures duties without copying the whole JD.
+    for index, block in enumerate(blocks):
+        if _ROLE_SECTION.search(block) or _REQUIREMENT_SECTION.search(block):
+            for nearby in blocks[index + 1:index + 9]:
+                if nearby not in priority:
+                    priority.append(nearby)
+
+    context = blocks[:3]
+    ordered = []
+    for block in context + priority + blocks:
+        if block not in ordered:
+            ordered.append(block)
+    excerpt = "\n".join(ordered)
+    return excerpt[:limit]
+
 
 def extract_pdf_text(pdf: bytes) -> str:
     """Extract text locally for providers that cannot accept PDF documents."""
@@ -230,7 +272,7 @@ def screen(jobs: list[Job], profile: dict, batch_size: int = 8, jd_chars: int = 
             "company": j.company,
             "title": j.title,
             "location": j.location,
-            "description": j.description[:jd_chars],
+            "description": _screen_excerpt(j.description, jd_chars),
         } for j in batch]
 
         n = start // batch_size + 1
