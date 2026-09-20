@@ -240,6 +240,8 @@ def create_app() -> Flask:
         upload = request.files.get("resume")
         demo = request.form.get("demo") == "on"
         delivery = (request.form.get("delivery") or "browser").strip().lower()
+        workplace_types = request.form.getlist("workplace") or ["remote", "hybrid", "onsite"]
+        location_preferences = request.form.getlist("location_preferences")
         send = delivery == "email"
         limit_raw = (request.form.get("limit") or "").strip()
         provider = (request.form.get("provider") or "ollama").strip().lower()
@@ -298,7 +300,9 @@ def create_app() -> Flask:
             "resume_path": str(saved_resume), "customize": {},
         }
         opts = Namespace(demo=demo, send=send, limit=limit, provider=provider,
-                 model=model, token=token, resume_path=str(saved_resume))
+                 model=model, token=token, resume_path=str(saved_resume),
+                 workplace_types=workplace_types,
+                 location_preferences=location_preferences)
         threading.Thread(target=_worker, args=(job_id, resume_path, email, opts),
                          daemon=True).start()
         return redirect(url_for("status", job_id=job_id))
@@ -422,7 +426,7 @@ def _worker(job_id: str, resume_path: Path, email: str, opts: Namespace) -> None
             # profile.example.json when profile.json is absent (allow_sample).
             if not opts.demo:
                 print("[resume] Extracting profile", flush=True)
-                _build_profile(resume_path, profile_file)
+                _build_profile(resume_path, profile_file, opts.location_preferences)
                 print("[resume] Profile ready", flush=True)
             else:
                 print("[resume] Demo profile enabled", flush=True)
@@ -557,7 +561,8 @@ def _restore_env(previous: dict[str, str | None]) -> None:
             os.environ[name] = value
 
 
-def _build_profile(resume_path: Path, profile_file: Path) -> None:
+def _build_profile(resume_path: Path, profile_file: Path,
+                   location_preferences: list[str] | None = None) -> None:
     is_pdf = resume_path.suffix.lower() == ".pdf"
     is_docx = resume_path.suffix.lower() == ".docx"
     provider, model = resolve("draft")
@@ -569,6 +574,8 @@ def _build_profile(resume_path: Path, profile_file: Path) -> None:
                          encoding="utf-8", errors="replace")),
         is_pdf=is_pdf, provider=provider, model=model,
     )
+    if location_preferences is not None:
+        profile["preferred_locations"] = location_preferences
     profile_file.write_text(json.dumps(profile, indent=2, ensure_ascii=False),
                             encoding="utf-8")
     print(f"wrote {profile_file}")

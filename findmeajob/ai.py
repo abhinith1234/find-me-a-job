@@ -30,6 +30,7 @@ DRAFT_KEYS = ("fit_summary", "tailored_bullets", "gaps", "cover_note", "question
 SCREEN_MAX_TOKENS = 4000
 DRAFT_MAX_TOKENS = 8000
 PROFILE_MAX_TOKENS = 4000
+PROFILE_RETRY_MAX_TOKENS = 6000
 CUSTOMIZE_MAX_TOKENS = 10000
 
 
@@ -161,7 +162,25 @@ def build_profile(resume_bytes: bytes | None = None, resume_text: str | None = N
             model, "", f"{PROFILE_PROMPT}\n\n--- RESUME ---\n{resume_text or ''}",
             PROFILE_MAX_TOKENS, json_mode=True)
 
-    profile = parse_json(raw)
+    try:
+        profile = parse_json(raw)
+    except ValueError:
+        compact_prompt = """Return ONLY compact valid JSON. No markdown or explanation.
+Use at most 8 skills, 5 domains, 5 projects, and 8 target_titles.
+Schema: {"name":"", "current_title":"", "years_experience":0,
+"core_skills":[], "domains":[], "notable_projects":[], "education":"",
+"target_titles":[], "preferred_locations":[], "seniority":""}
+
+RESUME:
+"""
+        if is_pdf and resume_bytes:
+            retry_text = extract_pdf_text(resume_bytes)
+        else:
+            retry_text = resume_text or ""
+        raw = provider.complete(
+            model, "", compact_prompt + retry_text,
+            PROFILE_RETRY_MAX_TOKENS, json_mode=True)
+        profile = parse_json(raw)
     if not isinstance(profile, dict):
         raise ValueError("profile extraction did not return a JSON object")
     return profile

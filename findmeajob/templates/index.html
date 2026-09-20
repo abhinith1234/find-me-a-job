@@ -35,6 +35,14 @@
     .label-line label { margin-bottom: 6px; }
     .label-line a { color: #9db4ff; font-size: 12px; font-weight: 500; }
     .row label { margin: 0; font-weight: 500; color: #c8ccd4; }
+    .workplace-options { border: 1px solid #262b36; border-radius: 8px; padding: 10px 12px; margin: 18px 0 0; }
+    .workplace-options legend { color: #c8ccd4; font-size: 13px; font-weight: 700; padding: 0 4px; }
+    .workplace-options .row { margin-top: 8px; }
+    .location-picker { margin-top: 18px; }
+    .location-picker input[type=text] { width: 100%; padding: 11px 12px; background: #0d1017; color: #e6e8ec; border: 1px solid #262b36; border-radius: 8px; font-size: 14px; }
+    .location-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .location-chip { background: #dff2e5; color: #14532d; border-radius: 999px; padding: 5px 9px; font-size: 12px; }
+    .location-chip button { width: auto; margin: 0 0 0 5px; padding: 0; background: transparent; color: #14532d; font-size: 12px; }
     .hint { color: #8b93a3; font-size: 12px; margin-top: 5px; line-height: 1.5; }
     button {
       margin-top: 24px; width: 100%; padding: 12px 18px; border: 0; cursor: pointer;
@@ -73,6 +81,36 @@
         <option value="email">Email me the digest</option>
       </select>
       <div class="hint">Browser mode opens the digest on the results page and sends no email.</div>
+
+      <div class="location-picker">
+        <label for="location-search">Where do you want to work?</label>
+        <input id="location-search" type="text" list="location-suggestions"
+               placeholder="Search cities or countries, e.g. Bangalore, Germany">
+        <datalist id="location-suggestions">
+          <option value="Anywhere"></option><option value="India"></option>
+          <option value="Bangalore"></option><option value="Bengaluru"></option>
+          <option value="Chennai"></option><option value="Hyderabad"></option>
+          <option value="Mumbai"></option><option value="Pune"></option>
+          <option value="Delhi"></option><option value="United States"></option>
+          <option value="Gurgaon"></option><option value="Gurugram"></option>
+          <option value="Noida"></option><option value="Kochi"></option>
+          <option value="Kolkata"></option><option value="Ahmedabad"></option>
+          <option value="Jaipur"></option><option value="Coimbatore"></option>
+          <option value="United Kingdom"></option><option value="Canada"></option>
+          <option value="Germany"></option><option value="Singapore"></option>
+          <option value="Australia"></option>
+        </datalist>
+        <div id="location-chips" class="location-chips"></div>
+        <div class="hint">Add one or more cities/countries. Leave empty to include all locations.</div>
+      </div>
+
+      <fieldset class="workplace-options">
+        <legend>Workplace preference</legend>
+        <label class="row"><input type="checkbox" name="workplace" value="remote" checked> Remote</label>
+        <label class="row"><input type="checkbox" name="workplace" value="hybrid" checked> Hybrid</label>
+        <label class="row"><input type="checkbox" name="workplace" value="onsite" checked> On-site</label>
+        <div class="hint">Choose any combination. These preferences apply to this run only.</div>
+      </fieldset>
 
       <div id="email-field">
         <label for="email">Email</label>
@@ -149,6 +187,9 @@
       const tokenLink = document.getElementById('token-link');
       const token = document.getElementById('token');
       const rememberGeminiField = document.getElementById('remember-gemini-field');
+      const locationSearch = document.getElementById('location-search');
+      const locationChips = document.getElementById('location-chips');
+      const selectedLocations = new Set();
       const modelStatus = document.getElementById('model-status');
       const installModelButton = document.getElementById('install-model-button');
       function updateProviderFields() {
@@ -183,6 +224,44 @@
       delivery.addEventListener('change', updateDeliveryFields);
       updateProviderFields();
       updateDeliveryFields();
+
+      function renderLocations() {
+        locationChips.innerHTML = '';
+        selectedLocations.forEach((location) => {
+          const chip = document.createElement('span');
+          chip.className = 'location-chip';
+          chip.textContent = location;
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.textContent = 'x';
+          remove.title = `Remove ${location}`;
+          remove.addEventListener('click', () => {
+            selectedLocations.delete(location);
+            renderLocations();
+          });
+          chip.appendChild(remove);
+          const hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = 'location_preferences';
+          hidden.value = location;
+          chip.appendChild(hidden);
+          locationChips.appendChild(chip);
+        });
+      }
+      function addLocation() {
+        const location = locationSearch.value.trim();
+        if (location && location.toLowerCase() !== 'anywhere') selectedLocations.add(location);
+        locationSearch.value = '';
+        renderLocations();
+      }
+      locationSearch.addEventListener('change', addLocation);
+      locationSearch.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ',') {
+          event.preventDefault();
+          addLocation();
+        }
+      });
+      renderLocations();
 
       async function updateOllamaModelStatus() {
         installModelButton.hidden = true;

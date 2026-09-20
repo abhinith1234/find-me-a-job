@@ -98,19 +98,27 @@ def cmd_run(args) -> int:
         return 1
     filters = cfg.get("filters", {}) or {}
     old_store = Store(args.old_ones) if getattr(args, "old_ones", None) else None
+    selected_locations = getattr(args, "location_preferences", None)
+    if selected_locations is not None:
+        filters = dict(filters)
+        filters["locations"] = selected_locations
+        print(f"  locations from user: {', '.join(selected_locations) if selected_locations else 'Anywhere'}")
+    workplace_types = getattr(args, "workplace_types", None)
+    if workplace_types:
+        filters = dict(filters)
+        filters["workplace_types"] = workplace_types
+        print(f"  workplace preferences: {', '.join(workplace_types)}")
     profile_locations = profile.get("preferred_locations") or profile.get("locations") or []
     profile_titles = [str(title).strip() for title in profile.get("target_titles", [])
                       if str(title).strip()]
-    if profile_locations or profile_titles:
+    if selected_locations is None and (profile_locations or profile_titles):
         filters = dict(filters)
         if profile_locations:
             filters["preferred_locations"] = profile_locations
         if profile_titles:
-            configured_titles = list(filters.get("include_titles") or [])
-            filters["include_titles"] = configured_titles + [
-                re.escape(title) for title in profile_titles
-                if title.lower() not in {pattern.lower() for pattern in configured_titles}
-            ]
+            filters["include_titles"] = [re.escape(title) for title in profile_titles]
+            filters["profile_titles"] = profile_titles
+            filters["profile_seniority"] = profile.get("seniority", "")
     if profile_titles:
         print(f"  title roles from resume: {', '.join(profile_titles)}")
     if profile_locations:
@@ -163,6 +171,8 @@ def cmd_run(args) -> int:
 
     if not jobs:
         subject, doc = report_mod.build([], scanned, 0, {})
+        if getattr(args, "workplace_types", None):
+            print(f"  workplace preferences: {', '.join(args.workplace_types)}")
         path = report_mod.write(doc, cfg.get("digest_file", "out/digest.html"))
         print(f"\nnothing new today. preview: {path}")
         return 0

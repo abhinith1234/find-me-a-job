@@ -18,6 +18,7 @@ openpyxl>=3.1
 # Optional public job-dataset source. Required only for the openjobdata entry.
 huggingface-hub>=0.30
 pyarrow>=18.0
+geonamescache>=2.0.0
 
 # Tests
 pytest>=8.0
