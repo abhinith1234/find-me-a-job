@@ -116,3 +116,27 @@ def write(html_doc: str, path: str | Path = "out/digest.html") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html_doc, encoding="utf-8")
     return path
+
+
+def write_xlsx(jobs: list[Job], path: str | Path = "out/filtered-jobs.xlsx") -> Path:
+    """Write the filtered jobs to an Excel sheet, for the email attachment."""
+    from openpyxl import Workbook
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Filtered jobs"
+    headers = ["job_id", "company", "title", "location", "score", "url", "description"]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = cell.font.copy(bold=True)
+    for j in jobs:
+        ws.append([j.job_id, j.company, j.title, j.location or "", j.score or "",
+                   j.url, j.description])
+    widths = [26, 20, 30, 18, 8, 40, 60]
+    for col, width in zip(ws.columns, widths):
+        ws.column_dimensions[col[0].column_letter].width = width
+    wb.save(path)
+    return path

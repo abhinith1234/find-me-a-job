@@ -138,18 +138,18 @@ def cmd_run(args) -> int:
     if old_store:
         jobs = old_store.unseen(jobs)
         print(f"  scheduler old_ones: {len(jobs)} new email candidates")
-    filtered_path = getattr(args, "web_filtered_path", None)
-    if filtered_path:
-        filtered_file = Path(filtered_path)
-        filtered_file.parent.mkdir(parents=True, exist_ok=True)
-        with filtered_file.open("w", newline="", encoding="utf-8-sig") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(("job_id", "company", "title", "location", "url",
-                             "description"))
-            writer.writerows(
-                (job.job_id, job.company, job.title, job.location, job.url,
-                 job.description)
-                for job in jobs)
+    filtered_path = getattr(args, "web_filtered_path", None) or "out/filtered-jobs.csv"
+    filtered_file = Path(filtered_path)
+    filtered_file.parent.mkdir(parents=True, exist_ok=True)
+    with filtered_file.open("w", newline="", encoding="utf-8-sig") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(("job_id", "company", "title", "location", "url",
+                         "description"))
+        writer.writerows(
+            (job.job_id, job.company, job.title, job.location, job.url,
+             job.description)
+            for job in jobs)
+    filtered_xlsx_path = report_mod.write_xlsx(jobs, filtered_file.with_suffix(".xlsx"))
     print(f"  matching jobs: {len(jobs)}")
     candidates = len(jobs)
     if args.limit:
@@ -194,9 +194,22 @@ def cmd_run(args) -> int:
 
     threshold = float(cfg.get("score_threshold", 7.0))
     top_n = int(cfg.get("max_per_digest", 5))
-    shortlist = sorted([j for j in jobs if (j.score or 0) >= threshold],
-                       key=lambda j: j.score or 0, reverse=True)[:top_n]
+    min_per_digest = int(cfg.get("min_per_digest", 3))
+    cap = max(top_n, min_per_digest)
+    ranked = sorted(jobs, key=lambda j: j.score or 0, reverse=True)
+    shortlist = [j for j in ranked if (j.score or 0) >= threshold][:top_n]
     print(f"  {len(shortlist)} scored >= {threshold}")
+
+    # Title + location already qualified these jobs in the prefilter; if the
+    # score threshold leaves us short, backfill with the best of the rest
+    # instead of mailing an empty digest.
+    if len(shortlist) < min_per_digest:
+        backfill = [j for j in ranked if j not in shortlist][:min_per_digest - len(shortlist)]
+        if backfill:
+            print(f"  below minimum of {min_per_digest} — backfilling "
+                  f"{len(backfill)} more by rank (title + experience match, score under threshold)")
+            shortlist = sorted(shortlist + backfill, key=lambda j: j.score or 0, reverse=True)[:cap]
+            shortlist = sorted(shortlist + backfill, key=lambda j: j.score or 0, reverse=True)[:top_n]
 
     # ---- 4. draft
     print(f"\n[4/5] drafting kits for {len(shortlist)}")
@@ -230,7 +243,7 @@ def cmd_run(args) -> int:
     sent = False
     if args.send:
         try:
-            notify.send(subject, doc)
+            notify.send(subject, doc, attachments=[filtered_xlsx_path])
             sent = True
         except Exception as e:  # bad app password, blocked port, offline
             print(f"  ! email failed ({type(e).__name__}: {e}) — digest still on disk")

@@ -63,6 +63,9 @@ screen_jd_chars: 1400     # JD truncation for screening
 draft_jd_chars: 6000      # JD truncation for drafting
 score_threshold: 5.0      # below this, no draft and no digest slot
 max_per_digest: 5         # hard cap on expensive draft calls per run
+min_per_digest: 3         # if fewer than this clear the threshold, backfill
+                          # with the next-best title+experience matches so
+                          # the digest is never empty just because scores ran low
 
 # --- paths ------------------------------------------------------------------
 companies_file: companies.yaml

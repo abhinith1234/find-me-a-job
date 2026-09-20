@@ -4,9 +4,11 @@ from __future__ import annotations
 import os
 import smtplib
 from email.message import EmailMessage
+from pathlib import Path
 
 
-def send(subject: str, html_body: str, to_addr: str | None = None) -> None:
+def send(subject: str, html_body: str, to_addr: str | None = None,
+          attachments: list[str | Path] | None = None) -> None:
     host = os.getenv("SMTP_HOST", "smtp.gmail.com")
     port = int(os.getenv("SMTP_PORT", "587"))
     user = os.environ["SMTP_USER"]
@@ -20,6 +22,17 @@ def send(subject: str, html_body: str, to_addr: str | None = None) -> None:
     msg["To"] = to_addr
     msg.set_content("This digest is HTML. Open it in an HTML-capable client.")
     msg.add_alternative(html_body, subtype="html")
+
+    for att in attachments or []:
+        att_path = Path(att)
+        if not att_path.exists():
+            continue
+        msg.add_attachment(
+            att_path.read_bytes(),
+            maintype="application",
+            subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename=att_path.name,
+        )
 
     with smtplib.SMTP(host, port, timeout=30) as s:
         s.starttls()

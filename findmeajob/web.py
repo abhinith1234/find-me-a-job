@@ -357,7 +357,9 @@ def create_app() -> Flask:
             try:
                 if not EMAIL_RE.match(recipient or ""):
                     raise ValueError("No valid recipient configured. Set MAIL_TO or rerun with an email address.")
-                notify.send(subject, body, to_addr=recipient)
+                xlsx_path = ROOT / "out" / f"{job_id}-filtered-jobs.xlsx"
+                attachments = [xlsx_path] if xlsx_path.exists() else None
+                notify.send(subject, body, to_addr=recipient, attachments=attachments)
                 message = f"Email sent to {recipient}."
             except Exception as exc:  # surface SMTP configuration errors in UI
                 message = f"Email failed: {type(exc).__name__}: {exc}"

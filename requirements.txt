@@ -12,6 +12,9 @@ anthropic>=0.40
 # Web UI — only needed for `python -m findmeajob serve`.
 flask>=3.0
 
+# Excel export of the filtered jobs, attached to the email digest.
+openpyxl>=3.1
+
 # Optional public job-dataset source. Required only for the openjobdata entry.
 huggingface-hub>=0.30
 pyarrow>=18.0
